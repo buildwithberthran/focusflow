@@ -1,0 +1,80 @@
+export type Phase =
+  | 'idle'
+  | 'countdown'
+  | 'break'
+  | 'waiting'
+  | 'paused'
+  | 'announcing-break'
+  | 'announcing-next'
+  | 'reviewing'
+  | 'finished';
+
+export type AppMode = 'standard' | 'target';
+export type SubMode = 'auto' | 'manual';
+export type AlertSound = 'beep' | 'voice';
+export type ResumePoint = 'this_cycle' | 'next_cycle';
+
+export interface CycleItem {
+  min: number;
+  label: string;
+}
+
+export interface SessionRow {
+  id: string;
+  user_id: string;
+  mode: AppMode;
+  autopilot: boolean;
+  total_cycles: number;
+  status: 'active' | 'completed' | 'interrupted' | 'abandoned';
+  started_at: string;
+  finished_at: string | null;
+}
+
+export interface CycleLogRow {
+  id: string;
+  user_id: string;
+  session_id: string;
+  cycle_number: number;
+  duration_min: number;
+  task_label: string | null;
+  completed: boolean | null;
+  log_note: string | null;
+  started_at: string;
+  ended_at: string | null;
+}
+
+export interface TemplateRow {
+  id: string;
+  user_id: string;
+  name: string;
+  break_seconds: number;
+  schedule: CycleItem[];
+  created_at: string;
+}
+
+export interface SnapshotRow {
+  session_id: string;
+  user_id: string;
+  snapshot_at: string;
+  app_mode: AppMode;
+  autopilot: boolean;
+  break_seconds: number;
+  alert_sound: AlertSound;
+  start_min: number | null;
+  end_min: number | null;
+  std_task_label: string | null;
+  schedule: CycleItem[] | null;
+  schedule_index: number;
+  current_cycle_min: number;
+  completed_cycles: number;
+  resume_point: ResumePoint;
+}
+
+export interface DisplayState {
+  time: string;
+  cycle: string;
+  status: string;
+  progress: string;
+  task: string;
+  paused: boolean;
+}
