@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from './context/AuthContext';
 import { TimerEngineProvider } from './context/TimerEngineContext';
-import LoginScreen from './components/Auth/LoginScreen';
+import CoverPage from './components/Landing/CoverPage';
 import AccountBar from './components/Layout/AccountBar';
 import PageTabs, { type Page } from './components/Layout/PageTabs';
 import TimerPage from './components/Timer/TimerPage';
@@ -30,11 +30,12 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="card">
-        <div className="history-loading">Loading…</div>
+      <div style={{ position: 'fixed', inset: 0, background: '#0b0f17', color: '#8a93a6',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem' }}>
+        Loading…
       </div>
     );
   }
 
-  return user ? <AuthedApp /> : <LoginScreen />;
+  return user ? <AuthedApp /> : <CoverPage />;
 }
