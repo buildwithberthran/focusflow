@@ -90,7 +90,12 @@ export default function HistoryPage() {
   }
 
   return (
-    <div id="historyPage">
+    <div id="historyPage" className="page-dashboard">
+      <div className="page-header">
+        <h1>History</h1>
+        <p>Every session, cycle, and note you've logged.</p>
+      </div>
+
       <div className="history-toolbar">
         <button onClick={load}>↻ Refresh</button>
         <button onClick={exportCsv}>⬇ Export CSV</button>

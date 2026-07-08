@@ -1,7 +1,7 @@
 import { useTemplates } from '../../hooks/useTemplates';
 import { useTimerEngine } from '../../context/TimerEngineContext';
 import { dbDeleteTemplate } from '../../lib/db';
-import type { Page } from '../Layout/PageTabs';
+import type { Page } from '../Layout/AppShell';
 
 export default function TemplatesPage({ onNavigate }: { onNavigate: (p: Page) => void }) {
   const { templates, loading, error, refresh } = useTemplates();
@@ -24,7 +24,12 @@ export default function TemplatesPage({ onNavigate }: { onNavigate: (p: Page) =>
   }
 
   return (
-    <div id="templatesPage">
+    <div id="templatesPage" className="page-dashboard">
+      <div className="page-header">
+        <h1>Templates</h1>
+        <p>Reusable cycle schedules you've saved.</p>
+      </div>
+
       <div className="history-toolbar">
         <button
           style={{ background: '#2a3344', color: '#aab2c5', border: '1px solid #3f4a60' }}

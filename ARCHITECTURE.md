@@ -15,16 +15,19 @@ you'd touch to change it.
 
 | File | What it controls |
 |---|---|
-| `src/App.tsx` | Top-level routing: shows `CoverPage` when signed out, the app shell (`AccountBar` + `PageTabs` + current page) when signed in. |
-| `src/components/Layout/AccountBar.tsx` | The small bar showing your Google avatar/name + Sign out button. |
-| `src/components/Layout/PageTabs.tsx` | The Timer / History / Templates tab switcher. |
-| `src/index.css` | Global styles for the **signed-in app** (the `.card` shell, buttons, inputs, modals, history/templates tables). This is a separate design system from `cover.css` on purpose — the cover page can evolve its own look without touching the working app. |
+| `src/App.tsx` | Top-level routing: shows `CoverPage` when signed out, `AppShell` (sidebar + current page) when signed in. |
+| `src/components/Layout/AppShell.tsx` | The sidebar + main-content grid wrapper and the `Page` type used for navigation. |
+| `src/components/Layout/Sidebar.tsx` | Brand mark, Timer/History/Templates nav (lucide icons), and the account footer (avatar/name/sign out). |
+| `src/components/Layout/StatsBar.tsx` | The 4 stat cards at the top of the dashboard (cycles today, focus minutes today, 30-day completion rate, streak). |
+| `src/hooks/useDashboardStats.ts` | Computes the numbers behind `StatsBar` from recent sessions/cycle logs. |
+| `src/index.css` | Global styles for the **signed-in app**: sidebar, stats cards, the two-column timer grid, panel cards, buttons, inputs, modals, history/templates tables. Root design tokens (`--ff-focus`, `--ff-rest`, `--ff-bg`, etc.) are declared under `:root` at the top — change those to retheme everything at once. |
 
 ## Timer page
 
 | File | What it controls |
 |---|---|
-| `src/components/Timer/TimerPage.tsx` | Standard vs Target Total panels, all the input fields, the live countdown display, and the button row (Start/Pause/Resume/Reset/Continue). |
+| `src/components/Timer/TimerPage.tsx` | The two-column dashboard layout: live timer card (left) + schedule/config card (right), all inputs, and the button row. |
+| `src/components/Timer/ProgressRing.tsx` | The circular SVG progress ring around the timer digits. Takes a `progress` (0–1), a `color`, and renders children in the center. |
 | `src/components/Timer/CyclePreview.tsx` | The editable list of cycles (minutes + label) shown under Target Total mode. |
 | `src/components/Timer/ResumeBanner.tsx` | The green "interrupted session found" banner. |
 | `src/components/Modals/ModeModal.tsx` | The Autopilot vs Manual popup shown after clicking Start. |
