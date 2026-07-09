@@ -17,7 +17,7 @@ export default function Sidebar({ active, onChange }: { active: Page; onChange: 
     <aside className="sidebar">
       <div className="sidebar-brand">
         <span className="sidebar-brand-mark">⏱</span>
-        <span className="sidebar-brand-text">FocusFlow</span>
+        <span className="sidebar-brand-text">TESTING123</span>
       </div>
 
       <nav className="sidebar-nav">

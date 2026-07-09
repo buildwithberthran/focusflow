@@ -38,8 +38,15 @@ you'd touch to change it.
 
 | File | What it controls |
 |---|---|
-| `src/components/History/HistoryPage.tsx` | Summary cards, per-task breakdown table, session list, CSV export. |
+| `src/components/History/HistoryPage.tsx` | Summary cards, per-task breakdown, sessions grouped by date, inline session rename, per-cycle paused-time annotation, CSV export. |
 | `src/components/Templates/TemplatesPage.tsx` | The saved-template list (Use / Delete). |
+
+## Branding
+
+| File | What it controls |
+|---|---|
+| `BRANDING.md` | The brand system: color tokens, type scale, logomark rationale, voice/tone. Read this before making visual changes anywhere. |
+| `public/brand/logomark.svg` | The single-color logomark (descending bars in a timer ring), recolorable via `currentColor`. |
 
 ## Logic (no UI, but drives everything above)
 

@@ -26,7 +26,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(newSession);
     });
 
-    return () => listener.subscription.unsubscribe();
+    // Fix: browser back/forward can restore a frozen pre-login snapshot from
+    // the bfcache (no JS re-runs), which looks like you've been signed out.
+    // Re-validate the session whenever the page is restored this way.
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        supabase.auth.getSession().then(({ data }) => setSession(data.session));
+      }
+    };
+    window.addEventListener('pageshow', onPageShow);
+
+    return () => {
+      listener.subscription.unsubscribe();
+      window.removeEventListener('pageshow', onPageShow);
+    };
   }, []);
 
   async function signInWithGoogle() {
