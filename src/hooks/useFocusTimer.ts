@@ -33,6 +33,7 @@ export interface EngineState {
   appMode: AppMode;
   subMode: SubMode;
   schedule: CycleItem[];
+  sessionName: string;
 
   startMin: number;
   endMin: number;
@@ -62,6 +63,7 @@ export interface EngineState {
   completedCyclesCount: number;
   currentSessionId: string | null;
   currentCycleLogId: string | null;
+  pausedSecondsInCycle: number;
   errorMsg: string;
   display: DisplayState;
 
@@ -82,6 +84,7 @@ function initialState(): EngineState {
     appMode: 'standard',
     subMode: 'auto',
     schedule: [],
+    sessionName: '',
 
     startMin: 30,
     endMin: 10,
@@ -110,6 +113,7 @@ function initialState(): EngineState {
     completedCyclesCount: 0,
     currentSessionId: null,
     currentCycleLogId: null,
+    pausedSecondsInCycle: 0,
     errorMsg: '',
     display: { time: '30:00', cycle: 'Ready', status: '', progress: '', task: '', paused: false },
 
@@ -143,6 +147,7 @@ export function useFocusTimer(userId: string | null) {
 
   const intervalRef = useRef<number | null>(null);
   const runTokenRef = useRef(0);
+  const pauseStartedAtRef = useRef<number | null>(null);
   const reviewResolveRef = useRef<((v: { answer: 'yes' | 'no' | null; note: string }) => void) | null>(
     null
   );
@@ -397,7 +402,9 @@ export function useFocusTimer(userId: string | null) {
       const { answer, note } = await openReviewModal(label, completedNum);
       if (!sv()) return;
       patch({ completedCyclesCount: s.current.completedCyclesCount + 1 });
-      if (s.current.currentCycleLogId) await dbEndCycle(s.current.currentCycleLogId, answer, note);
+      if (s.current.currentCycleLogId) {
+        await dbEndCycle(s.current.currentCycleLogId, answer, note, s.current.pausedSecondsInCycle);
+      }
       if (!sv()) return;
 
       const breakSecs = getBreakSeconds();
@@ -428,7 +435,7 @@ export function useFocusTimer(userId: string | null) {
           s.current.currentCycleMin,
           nextLabel
         );
-        patch({ currentCycleLogId: logId });
+        patch({ currentCycleLogId: logId, pausedSecondsInCycle: 0 });
       }
 
       await saveSnapshot('this_cycle');
@@ -491,7 +498,9 @@ export function useFocusTimer(userId: string | null) {
             const { answer, note } = await openReviewModal(label, completedNum);
             if (!sv()) return;
             patch({ completedCyclesCount: s.current.completedCyclesCount + 1 });
-            if (s.current.currentCycleLogId) await dbEndCycle(s.current.currentCycleLogId, answer, note);
+            if (s.current.currentCycleLogId) {
+              await dbEndCycle(s.current.currentCycleLogId, answer, note, s.current.pausedSecondsInCycle);
+            }
             if (sv()) await finishAll();
           })();
           return;
@@ -525,6 +534,7 @@ export function useFocusTimer(userId: string | null) {
   const pauseTimer = useCallback(() => {
     if (s.current.phase !== 'countdown' && s.current.phase !== 'break') return;
     const before = s.current.phase;
+    pauseStartedAtRef.current = Date.now();
     patch({ phaseBeforePause: before, phase: 'paused' });
     clearTimer();
     void saveSnapshot(before === 'countdown' ? 'this_cycle' : 'next_cycle');
@@ -537,7 +547,13 @@ export function useFocusTimer(userId: string | null) {
   const resumeTimer = useCallback(() => {
     if (s.current.phase !== 'paused') return;
     const p = s.current.phaseBeforePause as Phase;
-    patch({ phase: p, phaseBeforePause: null });
+    if (pauseStartedAtRef.current !== null) {
+      const elapsed = Math.round((Date.now() - pauseStartedAtRef.current) / 1000);
+      patch({ pausedSecondsInCycle: s.current.pausedSecondsInCycle + elapsed, phase: p, phaseBeforePause: null });
+      pauseStartedAtRef.current = null;
+    } else {
+      patch({ phase: p, phaseBeforePause: null });
+    }
     intervalRef.current = window.setInterval(() => tickRef.current(), 1000);
   }, [patch]);
 
@@ -594,7 +610,7 @@ export function useFocusTimer(userId: string | null) {
   const doStart = useCallback(
     async (auto: boolean) => {
       runTokenRef.current++;
-      patch({ autopilot: auto, completedCyclesCount: 0, modeModalOpen: false });
+      patch({ autopilot: auto, completedCyclesCount: 0, modeModalOpen: false, pausedSecondsInCycle: 0 });
 
       if (s.current.appMode === 'standard') {
         patch({
@@ -609,7 +625,7 @@ export function useFocusTimer(userId: string | null) {
       patch({ remainingSeconds: secs });
 
       if (userId) {
-        const sessionId = await dbStartSession(userId, s.current.appMode, auto);
+        const sessionId = await dbStartSession(userId, s.current.appMode, auto, s.current.sessionName);
         patch({ currentSessionId: sessionId });
         if (sessionId) {
           const logId = await dbStartCycle(userId, sessionId, 1, s.current.currentCycleMin, getCurrentLabel());
@@ -636,6 +652,7 @@ export function useFocusTimer(userId: string | null) {
   const stopAndReset = useCallback(async () => {
     runTokenRef.current++;
     clearTimer();
+    pauseStartedAtRef.current = null;
     if (s.current.reviewModalOpen) {
       patch({ reviewModalOpen: false });
       if (reviewResolveRef.current) {
@@ -643,7 +660,9 @@ export function useFocusTimer(userId: string | null) {
         reviewResolveRef.current = null;
       }
     }
-    if (s.current.currentCycleLogId) await dbEndCycle(s.current.currentCycleLogId, null, '[abandoned]');
+    if (s.current.currentCycleLogId) {
+      await dbEndCycle(s.current.currentCycleLogId, null, '[abandoned]', s.current.pausedSecondsInCycle);
+    }
     if (s.current.currentSessionId) {
       await dbEndSession(s.current.currentSessionId, s.current.completedCyclesCount, 'interrupted');
     }
@@ -654,6 +673,7 @@ export function useFocusTimer(userId: string | null) {
       breakRemaining: 0,
       scheduleIndex: 0,
       completedCyclesCount: 0,
+      pausedSecondsInCycle: 0,
       currentCycleLogId: null,
       currentSessionId: null,
       errorMsg: '',
@@ -694,6 +714,7 @@ export function useFocusTimer(userId: string | null) {
       patch({
         completedCyclesCount: snap.completed_cycles,
         currentSessionId: session.id,
+        sessionName: session.name || '',
         autopilot: snap.autopilot,
         appMode: snap.app_mode,
       });
@@ -734,7 +755,7 @@ export function useFocusTimer(userId: string | null) {
         }
       }
 
-      patch({ scheduleIndex, currentCycleMin, endMinutes, phase: 'announcing-next' });
+      patch({ scheduleIndex, currentCycleMin, endMinutes, phase: 'announcing-next', pausedSecondsInCycle: 0 });
       const secs = currentCycleMin * 60;
       patch({ remainingSeconds: secs });
 

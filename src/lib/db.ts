@@ -12,11 +12,19 @@ import type {
 export async function dbStartSession(
   userId: string,
   mode: AppMode,
-  autopilot: boolean
+  autopilot: boolean,
+  name?: string
 ): Promise<string | null> {
   const { data, error } = await supabase
     .from('sessions')
-    .insert({ user_id: userId, mode, autopilot, total_cycles: 0, status: 'active' })
+    .insert({
+      user_id: userId,
+      name: name?.trim() || null,
+      mode,
+      autopilot,
+      total_cycles: 0,
+      status: 'active',
+    })
     .select()
     .single();
   if (error) {
@@ -52,16 +60,30 @@ export async function dbStartCycle(
   return data.id;
 }
 
-export async function dbEndCycle(cycleLogId: string, completed: 'yes' | 'no' | null, note: string) {
+export async function dbEndCycle(
+  cycleLogId: string,
+  completed: 'yes' | 'no' | null,
+  note: string,
+  pausedSeconds = 0
+) {
   const { error } = await supabase
     .from('cycle_logs')
     .update({
       completed: completed === null ? null : completed === 'yes',
       log_note: note || '',
+      paused_seconds: pausedSeconds,
       ended_at: new Date().toISOString(),
     })
     .eq('id', cycleLogId);
   if (error) console.warn('DB cycle update:', error.message);
+}
+
+export async function dbRenameSession(sessionId: string, name: string) {
+  const { error } = await supabase
+    .from('sessions')
+    .update({ name: name.trim() || null })
+    .eq('id', sessionId);
+  if (error) throw error;
 }
 
 export async function dbEndSession(

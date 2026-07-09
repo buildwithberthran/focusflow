@@ -97,6 +97,18 @@ export default function TimerPage() {
 
         {/* ── Schedule / config card ── */}
         <div className="panel-card config-card">
+          <div className="full-input">
+            <label>Session name (optional)</label>
+            <input
+              type="text"
+              maxLength={120}
+              placeholder="e.g. Thesis chapter 3"
+              value={state.sessionName}
+              disabled={disabled}
+              onChange={(e) => actions.patch({ sessionName: e.target.value })}
+            />
+          </div>
+
           <div className="seg-tabs">
             <button
               className={'seg-tab' + (state.appMode === 'standard' ? ' active' : '')}

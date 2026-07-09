@@ -22,6 +22,7 @@ export interface CycleItem {
 export interface SessionRow {
   id: string;
   user_id: string;
+  name: string | null;
   mode: AppMode;
   autopilot: boolean;
   total_cycles: number;
@@ -39,6 +40,7 @@ export interface CycleLogRow {
   task_label: string | null;
   completed: boolean | null;
   log_note: string | null;
+  paused_seconds: number;
   started_at: string;
   ended_at: string | null;
 }
