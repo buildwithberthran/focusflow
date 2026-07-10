@@ -70,6 +70,7 @@ export interface SnapshotRow {
   current_cycle_min: number;
   completed_cycles: number;
   resume_point: ResumePoint;
+  remaining_seconds: number | null;
 }
 
 export interface DisplayState {

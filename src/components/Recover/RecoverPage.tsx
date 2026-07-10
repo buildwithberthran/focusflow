@@ -2,13 +2,16 @@ import { useCallback, useEffect, useState } from 'react';
 import { Play, RotateCw, XCircle } from 'lucide-react';
 import { useTimerEngine } from '../../context/TimerEngineContext';
 import { dbAbandonSession, dbListRecoverableSessions, type RecoverableSession } from '../../lib/db';
+import { describeResumeChoice } from '../../lib/resumeChoice';
 import type { Page } from '../Layout/AppShell';
+import ResumeChoiceModal from '../Modals/ResumeChoiceModal';
 
 export default function RecoverPage({ onNavigate }: { onNavigate: (p: Page) => void }) {
   const { state, actions } = useTimerEngine();
   const [rows, setRows] = useState<RecoverableSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [choiceRow, setChoiceRow] = useState<RecoverableSession | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -28,18 +31,29 @@ export default function RecoverPage({ onNavigate }: { onNavigate: (p: Page) => v
 
   const liveElsewhere = state.phase !== 'idle';
 
-  async function handleResume(row: RecoverableSession) {
+  async function runResume(row: RecoverableSession, choice: 'continue' | 'restart') {
+    if (!row.snapshot) return;
+    setBusyId(row.session.id);
+    try {
+      await actions.doResume(row.session, row.snapshot, choice);
+      onNavigate('timer');
+    } finally {
+      setBusyId(null);
+      setChoiceRow(null);
+    }
+  }
+
+  function handleResume(row: RecoverableSession) {
     if (!row.snapshot) return;
     if (liveElsewhere) {
       alert('Finish or reset your current session before resuming another one.');
       return;
     }
-    setBusyId(row.session.id);
-    try {
-      await actions.doResume(row.session, row.snapshot);
-      onNavigate('timer');
-    } finally {
-      setBusyId(null);
+    // Only bother the person with a choice when there's a real one to make.
+    if (describeResumeChoice(row.snapshot).hasRealChoice) {
+      setChoiceRow(row);
+    } else {
+      void runResume(row, 'restart');
     }
   }
 
@@ -135,6 +149,12 @@ export default function RecoverPage({ onNavigate }: { onNavigate: (p: Page) => v
             </div>
           );
         })}
+
+      <ResumeChoiceModal
+        snapshot={choiceRow?.snapshot ?? null}
+        onCancel={() => setChoiceRow(null)}
+        onChoose={(choice) => choiceRow && runResume(choiceRow, choice)}
+      />
     </div>
   );
 }

@@ -41,6 +41,15 @@ you'd touch to change it.
 | `src/components/History/HistoryPage.tsx` | Summary cards, per-task breakdown, sessions grouped by date, inline session rename, per-cycle paused-time annotation, CSV export. |
 | `src/components/Templates/TemplatesPage.tsx` | The saved-template list (Use / Delete). |
 
+## Resuming precisely
+
+| File | What it controls |
+|---|---|
+| `src/lib/resumeChoice.ts` | Works out, in plain language, the two sensible ways to resume a given snapshot (continue exact time vs restart the cycle; or move to the next cycle vs redo the one that just finished). |
+| `src/components/Modals/ResumeChoiceModal.tsx` | Presents those two options before actually resuming — only shown when there's a real choice to make. |
+
+The previous "always restarts from cycle 1" bug was `doResume` never advancing the cycle index when the interruption happened *between* cycles (i.e. the previous cycle had already completed) — it kept reusing the same, already-finished index. Fixed in `useFocusTimer.ts`. Exact mid-cycle resume needed a new `remaining_seconds` column on `session_snapshots` (migration `0003`), since the old snapshot never recorded anything more precise than "which cycle."
+
 ## Recovering interrupted sessions
 
 | File | What it controls |
