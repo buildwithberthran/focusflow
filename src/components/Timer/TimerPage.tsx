@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Play, Pause, Square, SkipForward, ExternalLink, Target, LayoutList } from 'lucide-react';
+import { Play, Pause, Square, SkipForward, ExternalLink, Target, LayoutList, Clock, Tag, Bell, LayoutTemplate, Sparkles, ListPlus } from 'lucide-react';
 import { useTimerEngine } from '../../context/TimerEngineContext';
 import { useTemplates } from '../../hooks/useTemplates';
 import StatsBar from '../Layout/StatsBar';
@@ -120,12 +120,16 @@ export default function TimerPage({ onNavigate }: { onNavigate: (p: Page) => voi
           <div className="seg-tabs">
             <button
               className={'seg-tab' + (state.appMode === 'standard' ? ' active' : '')}
+              disabled={disabled}
+              title={disabled ? 'Finish or reset the current session to switch modes' : undefined}
               onClick={() => actions.setAppMode('standard')}
             >
               <LayoutList size={15} strokeWidth={2.2} /> Standard
             </button>
             <button
               className={'seg-tab' + (state.appMode === 'target' ? ' active' : '')}
+              disabled={disabled}
+              title={disabled ? 'Finish or reset the current session to switch modes' : undefined}
               onClick={() => actions.setAppMode('target')}
             >
               <Target size={15} strokeWidth={2.2} /> Target Total
@@ -134,153 +138,175 @@ export default function TimerPage({ onNavigate }: { onNavigate: (p: Page) => voi
 
           {state.appMode === 'standard' && (
             <div id="standardPanel">
-              <div className="inputs">
-                <div>
-                  <label>Start time (min)</label>
-                  <input
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={state.startMin}
-                    disabled={disabled}
-                    onChange={(e) => actions.patch({ startMin: parseInt(e.target.value, 10) || 0 })}
-                  />
+              <div className="config-section accent-blue">
+                <div className="config-section-header">
+                  <Clock size={14} strokeWidth={2.2} /> Timing
                 </div>
-                <div>
-                  <label>End time (min)</label>
-                  <input
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={state.endMin}
-                    disabled={disabled}
-                    onChange={(e) => actions.patch({ endMin: parseInt(e.target.value, 10) || 0 })}
-                  />
-                </div>
-                <div>
-                  <label>Break (sec)</label>
-                  <input
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={state.breakSeconds}
-                    disabled={disabled}
-                    onChange={(e) => actions.patch({ breakSeconds: parseInt(e.target.value, 10) || 0 })}
-                  />
-                </div>
-                <div>
-                  <label>Alert</label>
-                  <select
-                    value={state.alertSound}
-                    disabled={disabled}
-                    onChange={(e) => actions.patch({ alertSound: e.target.value as any })}
-                  >
-                    <option value="beep">Beep</option>
-                    <option value="voice">Voice</option>
-                  </select>
+                <div className="inputs">
+                  <div>
+                    <label>Start time (min)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={state.startMin}
+                      disabled={disabled}
+                      onChange={(e) => actions.patch({ startMin: parseInt(e.target.value, 10) || 0 })}
+                    />
+                  </div>
+                  <div>
+                    <label>End time (min)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={state.endMin}
+                      disabled={disabled}
+                      onChange={(e) => actions.patch({ endMin: parseInt(e.target.value, 10) || 0 })}
+                    />
+                  </div>
+                  <div>
+                    <label>Break (sec)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={state.breakSeconds}
+                      disabled={disabled}
+                      onChange={(e) => actions.patch({ breakSeconds: parseInt(e.target.value, 10) || 0 })}
+                    />
+                  </div>
+                  <div>
+                    <label>Alert</label>
+                    <select
+                      value={state.alertSound}
+                      disabled={disabled}
+                      onChange={(e) => actions.patch({ alertSound: e.target.value as any })}
+                    >
+                      <option value="beep">Beep</option>
+                      <option value="voice">Voice</option>
+                    </select>
+                  </div>
                 </div>
               </div>
-              <div className="full-input">
-                <label>Task label (all cycles)</label>
-                <input
-                  type="text"
-                  maxLength={120}
-                  placeholder="e.g. Deep work — Chapter 3"
-                  value={state.stdTaskLabel}
-                  disabled={disabled}
-                  onChange={(e) => actions.patch({ stdTaskLabel: e.target.value })}
-                />
+
+              <div className="config-section accent-blue">
+                <div className="config-section-header">
+                  <Tag size={14} strokeWidth={2.2} /> Task
+                </div>
+                <div className="full-input" style={{ marginBottom: 0 }}>
+                  <label>Task label (all cycles)</label>
+                  <input
+                    type="text"
+                    maxLength={120}
+                    placeholder="e.g. Deep work — Chapter 3"
+                    value={state.stdTaskLabel}
+                    disabled={disabled}
+                    onChange={(e) => actions.patch({ stdTaskLabel: e.target.value })}
+                  />
+                </div>
               </div>
             </div>
           )}
 
           {state.appMode === 'target' && (
             <div id="targetPanel">
-              <div className="inputs">
-                <div>
-                  <label>Break (sec)</label>
-                  <input
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={state.tBreakSeconds}
-                    disabled={disabled}
-                    onChange={(e) => actions.patch({ tBreakSeconds: parseInt(e.target.value, 10) || 0 })}
-                  />
+              <div className="config-section accent-amber">
+                <div className="config-section-header">
+                  <Bell size={14} strokeWidth={2.2} /> Break &amp; alerts
                 </div>
-                <div>
-                  <label>Alert</label>
-                  <select
-                    value={state.tAlertSound}
-                    disabled={disabled}
-                    onChange={(e) => actions.patch({ tAlertSound: e.target.value as any })}
-                  >
-                    <option value="beep">Beep</option>
-                    <option value="voice">Voice</option>
-                  </select>
+                <div className="inputs">
+                  <div>
+                    <label>Break (sec)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={state.tBreakSeconds}
+                      disabled={disabled}
+                      onChange={(e) => actions.patch({ tBreakSeconds: parseInt(e.target.value, 10) || 0 })}
+                    />
+                  </div>
+                  <div>
+                    <label>Alert</label>
+                    <select
+                      value={state.tAlertSound}
+                      disabled={disabled}
+                      onChange={(e) => actions.patch({ tAlertSound: e.target.value as any })}
+                    >
+                      <option value="beep">Beep</option>
+                      <option value="voice">Voice</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
-              <div className="template-strip">
-                <label>Template:</label>
-                <select
-                  value={selectedTplId}
-                  onChange={(e) => setSelectedTplId(e.target.value)}
-                  disabled={disabled}
-                >
-                  <option value="">— none —</option>
-                  {templates.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  className="tpl-btn tpl-load-btn"
-                  disabled={disabled}
-                  onClick={() => {
-                    if (!selectedTplId) {
-                      actions.patch({ errorMsg: 'Select a template to load.' });
-                      return;
-                    }
-                    const tpl = templates.find((t) => t.id === selectedTplId);
-                    if (tpl) actions.loadScheduleFromTemplate(tpl);
-                  }}
-                >
-                  Load
-                </button>
-                <button
-                  className="tpl-btn tpl-save-btn"
-                  disabled={disabled}
-                  onClick={() => {
-                    if (!state.schedule.length) {
-                      actions.patch({ errorMsg: 'Build a schedule before saving as template.' });
-                      return;
-                    }
-                    actions.patch({ tplNameModalOpen: true });
-                  }}
-                >
-                  Save as template
-                </button>
+              <div className="config-section accent-amber">
+                <div className="config-section-header">
+                  <LayoutTemplate size={14} strokeWidth={2.2} /> Template
+                </div>
+                <div className="template-strip">
+                  <select
+                    value={selectedTplId}
+                    onChange={(e) => setSelectedTplId(e.target.value)}
+                    disabled={disabled}
+                  >
+                    <option value="">— none —</option>
+                    {templates.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="tpl-btn tpl-load-btn"
+                    disabled={disabled}
+                    onClick={() => {
+                      if (!selectedTplId) {
+                        actions.patch({ errorMsg: 'Select a template to load.' });
+                        return;
+                      }
+                      const tpl = templates.find((t) => t.id === selectedTplId);
+                      if (tpl) actions.loadScheduleFromTemplate(tpl);
+                    }}
+                  >
+                    Load
+                  </button>
+                  <button
+                    className="tpl-btn tpl-save-btn"
+                    disabled={disabled}
+                    onClick={() => {
+                      if (!state.schedule.length) {
+                        actions.patch({ errorMsg: 'Build a schedule before saving as template.' });
+                        return;
+                      }
+                      actions.patch({ tplNameModalOpen: true });
+                    }}
+                  >
+                    Save as template
+                  </button>
+                </div>
               </div>
 
               <div className="sub-tabs">
                 <button
                   className={'sub-tab' + (state.subMode === 'auto' ? ' active' : '')}
+                  disabled={disabled}
                   onClick={() => actions.setSubMode('auto')}
                 >
-                  Auto-calculate
+                  <Sparkles size={13} strokeWidth={2.2} /> Auto-calculate
                 </button>
                 <button
                   className={'sub-tab' + (state.subMode === 'manual' ? ' active' : '')}
+                  disabled={disabled}
                   onClick={() => actions.setSubMode('manual')}
                 >
-                  Manual entry
+                  <ListPlus size={13} strokeWidth={2.2} /> Manual entry
                 </button>
               </div>
 
               {state.subMode === 'auto' && (
-                <div id="autoCalcPanel">
+                <div id="autoCalcPanel" className="config-section accent-amber">
                   <div className="inputs cols3">
                     <div>
                       <label>Target (min)</label>
@@ -333,14 +359,14 @@ export default function TimerPage({ onNavigate }: { onNavigate: (p: Page) => voi
                   </div>
                   <div className="target-hint">{state.autoHint}</div>
                   <button className="generate-btn" disabled={disabled} onClick={() => actions.generateAutoSchedule()}>
-                    Generate Schedule
+                    <Sparkles size={14} strokeWidth={2.2} /> Generate Schedule
                   </button>
                 </div>
               )}
 
               {state.subMode === 'manual' && (
-                <div id="manualEntryPanel">
-                  <div className="target-hint">Add cycles below.</div>
+                <div id="manualEntryPanel" className="config-section accent-amber">
+                  <div className="target-hint" style={{ marginTop: 0 }}>Add cycles below.</div>
                   <div className="add-cycle-row">
                     <input
                       type="number"

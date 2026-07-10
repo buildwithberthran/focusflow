@@ -1,3 +1,4 @@
+import { ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
 import { useTimerEngine } from '../../context/TimerEngineContext';
 
 export default function CyclePreview() {
@@ -19,6 +20,7 @@ export default function CyclePreview() {
         <span className="total-pill">{total} min total</span>
       </div>
       <div className="cycle-col-headers">
+        <span className="ch-order" />
         <span className="ch-num">#</span>
         <span className="ch-min">Min</span>
         <span className="ch-lbl">Task label</span>
@@ -26,6 +28,24 @@ export default function CyclePreview() {
       <div>
         {schedule.map((c, idx) => (
           <div className={'cycle-row' + (idx === activeIndex ? ' active-cycle' : '')} key={idx}>
+            <span className="cycle-order-btns">
+              <button
+                className="cycle-order-btn"
+                title="Move up"
+                disabled={disabled || idx === 0}
+                onClick={() => actions.moveCycle(idx, 'up')}
+              >
+                <ChevronUp size={13} strokeWidth={2.4} />
+              </button>
+              <button
+                className="cycle-order-btn"
+                title="Move down"
+                disabled={disabled || idx === schedule.length - 1}
+                onClick={() => actions.moveCycle(idx, 'down')}
+              >
+                <ChevronDown size={13} strokeWidth={2.4} />
+              </button>
+            </span>
             <span className="cycle-num">{idx + 1}.</span>
             <input
               type="number"
@@ -54,7 +74,7 @@ export default function CyclePreview() {
               disabled={disabled}
               onClick={() => actions.removeCycle(idx)}
             >
-              ✕
+              <Trash2 size={13} strokeWidth={2} />
             </button>
           </div>
         ))}

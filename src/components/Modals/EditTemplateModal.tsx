@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import type { CycleItem, TemplateRow } from '../../types';
 import { dbUpdateTemplate } from '../../lib/db';
 
@@ -37,6 +37,15 @@ export default function EditTemplateModal({
   }
   function removeCycle(idx: number) {
     setSchedule((prev) => prev.filter((_, i) => i !== idx));
+  }
+  function moveCycle(idx: number, direction: 'up' | 'down') {
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+    setSchedule((prev) => {
+      if (targetIdx < 0 || targetIdx >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[targetIdx]] = [next[targetIdx], next[idx]];
+      return next;
+    });
   }
   function addCycle() {
     setSchedule((prev) => [...prev, { min: 10, label: '' }]);
@@ -102,6 +111,24 @@ export default function EditTemplateModal({
           </div>
           {schedule.map((c, idx) => (
             <div className="cycle-row" key={idx}>
+              <span className="cycle-order-btns">
+                <button
+                  className="cycle-order-btn"
+                  title="Move up"
+                  disabled={idx === 0}
+                  onClick={() => moveCycle(idx, 'up')}
+                >
+                  <ChevronUp size={13} strokeWidth={2.4} />
+                </button>
+                <button
+                  className="cycle-order-btn"
+                  title="Move down"
+                  disabled={idx === schedule.length - 1}
+                  onClick={() => moveCycle(idx, 'down')}
+                >
+                  <ChevronDown size={13} strokeWidth={2.4} />
+                </button>
+              </span>
               <span className="cycle-num">{idx + 1}.</span>
               <input
                 type="number"

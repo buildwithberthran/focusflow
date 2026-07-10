@@ -360,6 +360,7 @@ export function useFocusTimer(userId: string | null) {
         current_cycle_min: s.current.currentCycleMin,
         completed_cycles: s.current.completedCyclesCount,
         resume_point: resumePoint,
+        remaining_seconds: resumePoint === 'this_cycle' ? s.current.remainingSeconds : null,
       });
     },
     [userId, getBreakSeconds, getAlertSound]
@@ -815,7 +816,7 @@ export function useFocusTimer(userId: string | null) {
 
 
   const doResume = useCallback(
-    async (session: SessionRow, snap: SnapshotRow) => {
+    async (session: SessionRow, snap: SnapshotRow, choice: 'continue' | 'restart' = 'continue') => {
       runTokenRef.current++;
       writeLock(session.id);
       patch({
@@ -845,25 +846,48 @@ export function useFocusTimer(userId: string | null) {
       let scheduleIndex = snap.schedule_index;
       let currentCycleMin = snap.current_cycle_min;
       let endMinutes = snap.end_min || 0;
+      let startSeconds: number | null = null;
 
       if (snap.resume_point === 'this_cycle') {
-        // restart the interrupted cycle at its full duration (already correct)
-      } else if (snap.app_mode === 'target') {
-        if (scheduleIndex >= (snap.schedule || []).length) {
-          await finishAll();
-          return;
+        // Paused mid-cycle: 'continue' picks up from the exact second it was
+        // paused at; 'restart' replays this same cycle from its full length.
+        if (choice === 'continue' && typeof snap.remaining_seconds === 'number') {
+          startSeconds = snap.remaining_seconds;
         }
-        currentCycleMin = (snap.schedule || [])[scheduleIndex].min;
+        // choice === 'restart' (or no exact time recorded): fall through and
+        // use the full currentCycleMin duration below — same cycle either way.
+      } else if (snap.app_mode === 'target') {
+        // Previous cycle at scheduleIndex was already completed.
+        if (choice === 'restart') {
+          // Redo that same completed cycle from the beginning.
+          currentCycleMin = (snap.schedule || [])[scheduleIndex]?.min ?? currentCycleMin;
+        } else {
+          // Advance to the next cycle — this was previously the bug: the
+          // index never moved, silently re-running the completed cycle.
+          const nextIndex = scheduleIndex + 1;
+          if (nextIndex >= (snap.schedule || []).length) {
+            await finishAll();
+            return;
+          }
+          scheduleIndex = nextIndex;
+          currentCycleMin = (snap.schedule || [])[nextIndex].min;
+        }
       } else {
-        currentCycleMin = snap.current_cycle_min - 1;
-        if (currentCycleMin < endMinutes) {
-          await finishAll();
-          return;
+        // Standard mode, previous cycle completed.
+        if (choice === 'restart') {
+          // Redo the same completed cycle length as-is (currentCycleMin unchanged).
+        } else {
+          const nextMin = snap.current_cycle_min - 1;
+          if (nextMin < endMinutes) {
+            await finishAll();
+            return;
+          }
+          currentCycleMin = nextMin;
         }
       }
 
       patch({ scheduleIndex, currentCycleMin, endMinutes, phase: 'announcing-next', pausedSecondsInCycle: 0 });
-      const secs = currentCycleMin * 60;
+      const secs = startSeconds ?? currentCycleMin * 60;
       patch({ remainingSeconds: secs });
 
       if (userId) {
@@ -914,15 +938,20 @@ export function useFocusTimer(userId: string | null) {
   // ───────────────────────── mode / tab switching ─────────────────────────
   const setAppMode = useCallback(
     (mode: AppMode) => {
-      if (s.current.phase !== 'idle' && s.current.phase !== 'finished') void stopAndReset();
+      // A running or paused session must never be silently reset just because
+      // the person clicked the Standard/Target tab — that was overwriting a
+      // live countdown with "--:--". Switching mode is only meaningful (and
+      // only allowed) when there's nothing in progress to lose.
+      if (s.current.phase !== 'idle' && s.current.phase !== 'finished') return;
       patch({ appMode: mode, schedule: [] });
       refreshIdleDisplay();
     },
-    [patch, stopAndReset, refreshIdleDisplay]
+    [patch, refreshIdleDisplay]
   );
 
   const setSubMode = useCallback(
     (mode: SubMode) => {
+      if (s.current.phase !== 'idle' && s.current.phase !== 'finished') return;
       patch({ subMode: mode, schedule: [] });
       refreshIdleDisplay();
     },
@@ -1006,6 +1035,18 @@ export function useFocusTimer(userId: string | null) {
     (idx: number) => {
       const schedule = [...s.current.schedule];
       schedule.splice(idx, 1);
+      patch({ schedule });
+      refreshIdleDisplay();
+    },
+    [patch, refreshIdleDisplay]
+  );
+
+  const moveCycle = useCallback(
+    (idx: number, direction: 'up' | 'down') => {
+      const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= s.current.schedule.length) return;
+      const schedule = [...s.current.schedule];
+      [schedule[idx], schedule[targetIdx]] = [schedule[targetIdx], schedule[idx]];
       patch({ schedule });
       refreshIdleDisplay();
     },
@@ -1213,6 +1254,7 @@ export function useFocusTimer(userId: string | null) {
       updateCycleMin,
       updateCycleLabel,
       removeCycle,
+      moveCycle,
       loadScheduleFromTemplate,
       configureFromSnapshot,
       requestStart,
