@@ -1,23 +1,32 @@
+import { useState } from 'react';
+import { Pencil, Trash2, Play } from 'lucide-react';
 import { useTemplates } from '../../hooks/useTemplates';
 import { useTimerEngine } from '../../context/TimerEngineContext';
 import { dbDeleteTemplate } from '../../lib/db';
+import type { TemplateRow } from '../../types';
 import type { Page } from '../Layout/AppShell';
+import DeleteTemplateModal from '../Modals/DeleteTemplateModal';
+import EditTemplateModal from '../Modals/EditTemplateModal';
 
 export default function TemplatesPage({ onNavigate }: { onNavigate: (p: Page) => void }) {
   const { templates, loading, error, refresh } = useTemplates();
   const { actions } = useTimerEngine();
+  const [deleteTarget, setDeleteTarget] = useState<TemplateRow | null>(null);
+  const [editTarget, setEditTarget] = useState<TemplateRow | null>(null);
 
-  async function handleDelete(id: string) {
-    if (!confirm('Delete this template?')) return;
+  async function confirmDelete() {
+    if (!deleteTarget) return;
     try {
-      await dbDeleteTemplate(id);
+      await dbDeleteTemplate(deleteTarget.id);
       await refresh();
     } catch (e: any) {
       alert('Delete failed: ' + e.message);
+    } finally {
+      setDeleteTarget(null);
     }
   }
 
-  function handleUse(tpl: (typeof templates)[number]) {
+  function handleUse(tpl: TemplateRow) {
     actions.setAppMode('target');
     actions.loadScheduleFromTemplate(tpl);
     onNavigate('timer');
@@ -66,16 +75,22 @@ export default function TemplatesPage({ onNavigate }: { onNavigate: (p: Page) =>
               </div>
               <div className="tpl-actions">
                 <button className="use-tpl-btn" onClick={() => handleUse(t)}>
-                  ▶ Use
+                  <Play size={13} strokeWidth={2.4} /> Use
                 </button>
-                <button className="delete-tpl-btn" onClick={() => handleDelete(t.id)}>
-                  ✕
+                <button className="edit-tpl-btn" onClick={() => setEditTarget(t)} title="Edit">
+                  <Pencil size={13} strokeWidth={2.2} />
+                </button>
+                <button className="delete-tpl-btn" onClick={() => setDeleteTarget(t)} title="Delete">
+                  <Trash2 size={13} strokeWidth={2.2} />
                 </button>
               </div>
             </div>
           </div>
         );
       })}
+
+      <DeleteTemplateModal template={deleteTarget} onCancel={() => setDeleteTarget(null)} onConfirm={confirmDelete} />
+      <EditTemplateModal template={editTarget} onClose={() => setEditTarget(null)} onSaved={refresh} />
     </div>
   );
 }

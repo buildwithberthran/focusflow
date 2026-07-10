@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   AlertSound,
   AppMode,
@@ -27,6 +27,7 @@ import {
   dbStartCycle,
   dbStartSession,
 } from '../lib/db';
+import { formatClock } from '../lib/time';
 
 export interface EngineState {
   // config
@@ -66,6 +67,7 @@ export interface EngineState {
   pausedSecondsInCycle: number;
   errorMsg: string;
   display: DisplayState;
+  lockedByOtherTab: boolean;
 
   // modals
   modeModalOpen: boolean;
@@ -115,7 +117,8 @@ function initialState(): EngineState {
     currentCycleLogId: null,
     pausedSecondsInCycle: 0,
     errorMsg: '',
-    display: { time: '30:00', cycle: 'Ready', status: '', progress: '', task: '', paused: false },
+    display: { time: '30:00', cycle: 'Ready', status: '', progress: '', task: '', paused: false, fraction: 1, isBreak: false },
+    lockedByOtherTab: false,
 
     modeModalOpen: false,
     reviewModalOpen: false,
@@ -129,7 +132,7 @@ function initialState(): EngineState {
 }
 
 function fmt(s: number): string {
-  return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  return formatClock(s);
 }
 
 export function useFocusTimer(userId: string | null) {
@@ -154,6 +157,59 @@ export function useFocusTimer(userId: string | null) {
   const popWinRef = useRef<Window | null>(null);
   const pipWinRef = useRef<Window | null>(null);
   const pipContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // ───────────────────────── cross-tab session lock ─────────────────────────
+  // Prevents two tabs from each thinking they own the active session (the
+  // "opening in two tabs shows inconsistent state" bug). This does NOT mirror
+  // the live countdown between tabs second-by-second — that would need a
+  // shared timer authority broadcasting ticks, a materially bigger change.
+  // What it does guarantee: only one tab can ever be "the" running session at
+  // a time, and every other tab knows about it immediately.
+  const LOCK_KEY = 'focusflow:active-lock';
+  const LOCK_STALE_MS = 4 * 60 * 60 * 1000; // 4h — safety net for a crashed tab only
+  const tabIdRef = useRef<string>(
+    (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`)
+  );
+
+  const readLock = useCallback((): { sessionId: string; tabId: string; updatedAt: number } | null => {
+    try {
+      const raw = localStorage.getItem(LOCK_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const writeLock = useCallback((sessionId: string) => {
+    try {
+      localStorage.setItem(
+        LOCK_KEY,
+        JSON.stringify({ sessionId, tabId: tabIdRef.current, updatedAt: Date.now() })
+      );
+    } catch {
+      /* ignore (e.g. private-browsing quota) */
+    }
+  }, []);
+
+  const clearLockIfOwned = useCallback(() => {
+    const lock = readLock();
+    if (lock && lock.tabId === tabIdRef.current) {
+      try {
+        localStorage.removeItem(LOCK_KEY);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [readLock]);
+
+  const refreshLockStatus = useCallback(() => {
+    const lock = readLock();
+    const ownedElsewhere =
+      !!lock && lock.tabId !== tabIdRef.current && Date.now() - lock.updatedAt < LOCK_STALE_MS;
+    if (ownedElsewhere !== s.current.lockedByOtherTab) {
+      patch({ lockedByOtherTab: ownedElsewhere });
+    }
+  }, [readLock, patch]);
 
   const clearTimer = useCallback(() => {
     if (intervalRef.current !== null) {
@@ -185,39 +241,73 @@ export function useFocusTimer(userId: string | null) {
     return `Cycle ${s.current.scheduleIndex + 1} of ${total}  ·  ${doneMin}/${totalMin} min done`;
   }, []);
 
-  const pushToPopout = useCallback((d: DisplayState) => {
-    const w = popWinRef.current;
-    if (!w || w.closed) return;
-    try {
-      const doc = w.document;
-      (doc.getElementById('pw-time') as HTMLElement).textContent = d.time;
-      (doc.getElementById('pw-cycle') as HTMLElement).textContent = d.cycle;
-      (doc.getElementById('pw-status') as HTMLElement).textContent = d.status;
-      (doc.getElementById('pw-prog') as HTMLElement).textContent = d.progress || '';
-      (doc.getElementById('pw-task') as HTMLElement).textContent = d.task || '';
-      (doc.getElementById('pw-time') as HTMLElement).style.color = d.paused ? '#ffd166' : '#fff';
-    } catch {
-      /* ignore */
+  const PW_RING_R = 52;
+  const PW_RING_C = 2 * Math.PI * PW_RING_R;
+
+  const applyWidgetState = useCallback((root: Document | HTMLElement, d: DisplayState) => {
+    const q = (id: string) => (root as Document).getElementById
+      ? (root as Document).getElementById(id)
+      : (root as HTMLElement).querySelector(`#${id}`);
+
+    const timeEl = q('pw-time') as HTMLElement | null;
+    const cycleEl = q('pw-cycle') as HTMLElement | null;
+    const statusEl = q('pw-status') as HTMLElement | null;
+    const progEl = q('pw-prog') as HTMLElement | null;
+    const taskEl = q('pw-task') as HTMLElement | null;
+    const ringEl = q('pw-ring-fill') as unknown as SVGCircleElement | null;
+    const cardEl = q('pw-card') as HTMLElement | null;
+
+    if (timeEl) timeEl.textContent = d.time;
+    if (cycleEl) cycleEl.textContent = d.cycle;
+    if (statusEl) statusEl.textContent = d.status;
+    if (progEl) progEl.textContent = d.progress || '';
+    if (taskEl) taskEl.textContent = d.task || '';
+
+    const accent = d.isBreak ? '#ffb86b' : '#5b8cff';
+    if (timeEl) timeEl.style.color = d.paused ? '#ffd166' : '#f5f7fb';
+    if (ringEl) {
+      const offset = PW_RING_C * (1 - d.fraction);
+      ringEl.style.strokeDashoffset = String(offset);
+      ringEl.style.stroke = d.paused ? '#ffd166' : accent;
     }
+    if (cardEl) cardEl.setAttribute('data-paused', d.paused ? '1' : '0');
   }, []);
 
-  const pushToPiP = useCallback((d: DisplayState) => {
-    const c = pipContainerRef.current;
-    if (!c) return;
-    try {
-      (c.querySelector('#pw-time') as HTMLElement).textContent = d.time;
-      (c.querySelector('#pw-cycle') as HTMLElement).textContent = d.cycle;
-      (c.querySelector('#pw-status') as HTMLElement).textContent = d.status;
-      (c.querySelector('#pw-prog') as HTMLElement).textContent = d.progress || '';
-      (c.querySelector('#pw-task') as HTMLElement).textContent = d.task || '';
-      (c.querySelector('#pw-time') as HTMLElement).style.color = d.paused ? '#ffd166' : '#fff';
-    } catch {
-      /* ignore */
-    }
-  }, []);
+  const pushToPopout = useCallback(
+    (d: DisplayState) => {
+      const w = popWinRef.current;
+      if (!w || w.closed) return;
+      try {
+        applyWidgetState(w.document, d);
+      } catch {
+        /* ignore */
+      }
+    },
+    [applyWidgetState]
+  );
+
+  const pushToPiP = useCallback(
+    (d: DisplayState) => {
+      const c = pipContainerRef.current;
+      if (!c) return;
+      try {
+        applyWidgetState(c, d);
+      } catch {
+        /* ignore */
+      }
+    },
+    [applyWidgetState]
+  );
 
   const syncDisplay = useCallback(
     (time: string, cycle: string, status: string) => {
+      const isBreak = s.current.phase === 'break' || (s.current.phase === 'paused' && s.current.phaseBeforePause === 'break');
+      const totalSeconds = isBreak
+        ? s.current.appMode === 'standard'
+          ? s.current.breakSeconds
+          : s.current.tBreakSeconds
+        : s.current.currentCycleMin * 60;
+      const fraction = totalSeconds > 0 ? Math.max(0, Math.min(1, s.current.remainingSeconds / totalSeconds)) : 0;
       const display: DisplayState = {
         time,
         cycle,
@@ -225,6 +315,8 @@ export function useFocusTimer(userId: string | null) {
         progress: progressLabel(),
         task: getCurrentLabel() ? '📌 ' + getCurrentLabel() : '',
         paused: s.current.phase === 'paused',
+        fraction,
+        isBreak,
       };
       patch({ display });
       pushToPopout(display);
@@ -333,9 +425,10 @@ export function useFocusTimer(userId: string | null) {
     if (s.current.currentSessionId) {
       await dbEndSession(s.current.currentSessionId, s.current.completedCyclesCount, 'completed');
     }
+    clearLockIfOwned();
     patch({ phase: 'finished', currentSessionId: null });
     syncDisplay('00:00', '🎉 Finished!', 'All cycles complete.');
-  }, [clearTimer, patch, syncDisplay]);
+  }, [clearTimer, patch, syncDisplay, clearLockIfOwned]);
 
   const cycleNumber = useCallback(() => {
     if (s.current.appMode === 'target') return s.current.scheduleIndex + 1;
@@ -599,13 +692,18 @@ export function useFocusTimer(userId: string | null) {
 
   const requestStart = useCallback(() => {
     patch({ errorMsg: '' });
+    refreshLockStatus();
+    if (s.current.lockedByOtherTab) {
+      patch({ errorMsg: 'A session is already running in another tab. Finish it there first.' });
+      return;
+    }
     const err = s.current.appMode === 'standard' ? validateStandard() : validateTarget();
     if (err) {
       patch({ errorMsg: err });
       return;
     }
     patch({ modeModalOpen: true });
-  }, [patch, validateStandard, validateTarget]);
+  }, [patch, refreshLockStatus, validateStandard, validateTarget]);
 
   const doStart = useCallback(
     async (auto: boolean) => {
@@ -628,6 +726,7 @@ export function useFocusTimer(userId: string | null) {
         const sessionId = await dbStartSession(userId, s.current.appMode, auto, s.current.sessionName);
         patch({ currentSessionId: sessionId });
         if (sessionId) {
+          writeLock(sessionId);
           const logId = await dbStartCycle(userId, sessionId, 1, s.current.currentCycleMin, getCurrentLabel());
           patch({ currentCycleLogId: logId });
         }
@@ -646,7 +745,7 @@ export function useFocusTimer(userId: string | null) {
         intervalRef.current = window.setInterval(() => tickRef.current(), 1000);
       });
     },
-    [patch, userId, getCurrentLabel, saveSnapshot, syncDisplay, getAlertSound, clearTimer]
+    [patch, userId, getCurrentLabel, saveSnapshot, syncDisplay, getAlertSound, clearTimer, writeLock]
   );
 
   const stopAndReset = useCallback(async () => {
@@ -666,6 +765,7 @@ export function useFocusTimer(userId: string | null) {
     if (s.current.currentSessionId) {
       await dbEndSession(s.current.currentSessionId, s.current.completedCyclesCount, 'interrupted');
     }
+    clearLockIfOwned();
     cancelSpeech();
     patch({
       phase: 'idle',
@@ -679,13 +779,18 @@ export function useFocusTimer(userId: string | null) {
       errorMsg: '',
     });
     refreshIdleDisplay();
-  }, [clearTimer, patch, refreshIdleDisplay]);
+  }, [clearTimer, patch, refreshIdleDisplay, clearLockIfOwned]);
 
   // ───────────────────────── resume from snapshot ─────────────────────────
   const checkForInterruptedSession = useCallback(async () => {
     if (!userId) return;
+    // A session is already live in this tab (running, paused, mid-transition,
+    // or just finished) — never surface the resume banner over it. This was
+    // the source of the "resume modal always appears" bug: this check used
+    // to run unconditionally on every visit to the Timer tab.
+    if (s.current.phase !== 'idle') return;
     try {
-      const found = await dbFindInterruptedSession();
+      const found = await dbFindInterruptedSession(s.current.currentSessionId);
       if (!found) {
         patch({ resumeBannerVisible: false });
         return;
@@ -708,9 +813,11 @@ export function useFocusTimer(userId: string | null) {
     }
   }, [userId, patch]);
 
+
   const doResume = useCallback(
     async (session: SessionRow, snap: SnapshotRow) => {
       runTokenRef.current++;
+      writeLock(session.id);
       patch({
         completedCyclesCount: snap.completed_cycles,
         currentSessionId: session.id,
@@ -785,7 +892,7 @@ export function useFocusTimer(userId: string | null) {
         intervalRef.current = window.setInterval(() => tickRef.current(), 1000);
       });
     },
-    [patch, userId, getCurrentLabel, syncDisplay, getAlertSound, clearTimer, finishAll]
+    [patch, userId, getCurrentLabel, syncDisplay, getAlertSound, clearTimer, finishAll, writeLock]
   );
 
   const resumeSession = useCallback(async () => {
@@ -919,11 +1026,96 @@ export function useFocusTimer(userId: string | null) {
     [patch, refreshIdleDisplay]
   );
 
+  // Pre-fill the Timer config (without starting) from a stale/interrupted
+  // session's last snapshot — used by the "Restart" action on the Recover page.
+  const configureFromSnapshot = useCallback(
+    (snap: SnapshotRow, sessionName?: string | null) => {
+      if (s.current.phase !== 'idle') return;
+      if (snap.app_mode === 'target') {
+        const schedule = (snap.schedule || []).map((c) => ({ min: c.min, label: c.label || '' }));
+        patch({
+          appMode: 'target',
+          schedule,
+          tBreakSeconds: snap.break_seconds,
+          tAlertSound: snap.alert_sound,
+          subMode: 'manual',
+          sessionName: sessionName || '',
+          errorMsg: '',
+        });
+      } else {
+        patch({
+          appMode: 'standard',
+          startMin: snap.start_min || 30,
+          endMin: snap.end_min || 10,
+          breakSeconds: snap.break_seconds,
+          alertSound: snap.alert_sound,
+          stdTaskLabel: snap.std_task_label || '',
+          sessionName: sessionName || '',
+          errorMsg: '',
+        });
+      }
+      refreshIdleDisplay();
+    },
+    [patch, refreshIdleDisplay]
+  );
+
   // ───────────────────────── popout / PiP ─────────────────────────
-  const widgetCSS = `*{box-sizing:border-box;margin:0;padding:0;}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;background:#1e2530;color:#f0f0f0;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:14px;text-align:center;}#pw-time{font-size:3.2rem;font-weight:700;letter-spacing:3px;font-variant-numeric:tabular-nums;color:#fff;line-height:1;transition:color 0.3s;}#pw-cycle{font-size:.9rem;color:#8fb6ff;margin-top:10px;min-height:1.4em;}#pw-task{font-size:.78rem;color:#7dffc0;margin-top:4px;min-height:1.2em;font-weight:600;}#pw-status{font-size:.82rem;color:#ffd166;margin-top:5px;min-height:1.4em;}#pw-prog{font-size:.65rem;color:#5a6a88;margin-top:4px;min-height:1.1em;}#pw-label{font-size:.6rem;color:#4a566b;margin-top:12px;letter-spacing:1px;text-transform:uppercase;}`;
+  const widgetFontLink =
+    '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">';
+
+  const widgetCSS = `
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{
+      font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+      background:#0b0f17;color:#f5f7fb;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;min-height:100vh;padding:18px;text-align:center;
+      -webkit-user-select:none;user-select:none;
+    }
+    #pw-card{
+      width:100%;max-width:280px;background:#161d2b;border:1px solid rgba(255,255,255,.07);
+      border-radius:18px;padding:20px 18px 18px;display:flex;flex-direction:column;align-items:center;
+    }
+    #pw-brand{
+      display:flex;align-items:center;gap:6px;font-family:'Sora',sans-serif;font-weight:700;
+      font-size:.78rem;color:#8a93a6;letter-spacing:.3px;margin-bottom:14px;
+    }
+    #pw-brand .pw-dot{width:6px;height:6px;border-radius:50%;background:#5b8cff;}
+    #pw-ring-wrap{position:relative;width:132px;height:132px;margin-bottom:12px;}
+    #pw-ring-wrap svg{transform:rotate(-90deg);width:100%;height:100%;}
+    #pw-ring-track{fill:none;stroke:rgba(255,255,255,.07);stroke-width:8;}
+    #pw-ring-fill{
+      fill:none;stroke:#5b8cff;stroke-width:8;stroke-linecap:round;
+      stroke-dasharray:${PW_RING_C};stroke-dashoffset:0;
+      transition:stroke-dashoffset .9s linear,stroke .3s ease;
+    }
+    #pw-ring-center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;}
+    #pw-time{
+      font-family:'IBM Plex Mono',monospace;font-size:1.7rem;font-weight:600;letter-spacing:.5px;
+      font-variant-numeric:tabular-nums;color:#f5f7fb;transition:color .3s;
+    }
+    #pw-cycle{font-size:.86rem;font-weight:600;color:#dde1e9;margin-bottom:3px;min-height:1.3em;}
+    #pw-task{font-size:.74rem;color:#7dc8ff;margin-bottom:3px;min-height:1.15em;font-weight:500;}
+    #pw-status{font-size:.72rem;color:#ffb86b;min-height:1.3em;}
+    #pw-prog{font-size:.62rem;color:#5a6478;margin-top:4px;min-height:1.1em;font-family:'IBM Plex Mono',monospace;}
+    #pw-card[data-paused="1"] #pw-time{color:#ffd166;}
+  `;
+
   const widgetBodyHTML = useCallback(() => {
     const d = s.current.display;
-    return `<div id="pw-time">${d.time}</div><div id="pw-cycle">${d.cycle}</div><div id="pw-task">${d.task}</div><div id="pw-status">${d.status}</div><div id="pw-prog">${d.progress}</div><div id="pw-label">FocusFlow · Live</div>`;
+    return `<div id="pw-card">
+      <div id="pw-brand"><span class="pw-dot"></span>FocusFlow</div>
+      <div id="pw-ring-wrap">
+        <svg viewBox="0 0 120 120">
+          <circle id="pw-ring-track" cx="60" cy="60" r="${PW_RING_R}"></circle>
+          <circle id="pw-ring-fill" cx="60" cy="60" r="${PW_RING_R}"></circle>
+        </svg>
+        <div id="pw-ring-center"><div id="pw-time">${d.time}</div></div>
+      </div>
+      <div id="pw-cycle">${d.cycle}</div>
+      <div id="pw-task">${d.task}</div>
+      <div id="pw-status">${d.status}</div>
+      <div id="pw-prog">${d.progress}</div>
+    </div>`;
   }, []);
 
   const openWindowPopout = useCallback(() => {
@@ -934,7 +1126,7 @@ export function useFocusTimer(userId: string | null) {
     const w = window.open(
       '',
       'FocusFlowPopout',
-      'width=300,height=290,resizable=yes,scrollbars=no,toolbar=no,menubar=no,location=no,status=no'
+      'width=320,height=400,resizable=yes,scrollbars=no,toolbar=no,menubar=no,location=no,status=no'
     );
     if (!w) {
       patch({ errorMsg: 'Pop-out blocked. Please allow pop-ups for this page.' });
@@ -942,16 +1134,17 @@ export function useFocusTimer(userId: string | null) {
     }
     popWinRef.current = w;
     w.document.write(
-      `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>FocusFlow · Live</title><style>${widgetCSS}</style></head><body>${widgetBodyHTML()}</body></html>`
+      `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>FocusFlow · Live</title>${widgetFontLink}<style>${widgetCSS}</style></head><body>${widgetBodyHTML()}</body></html>`
     );
     w.document.close();
+    applyWidgetState(w.document, s.current.display);
     const iv = setInterval(() => {
       if (!popWinRef.current || popWinRef.current.closed) {
         clearInterval(iv);
         popWinRef.current = null;
       }
     }, 500);
-  }, [patch, widgetBodyHTML]);
+  }, [patch, widgetBodyHTML, applyWidgetState, widgetCSS]);
 
   const openDocumentPiP = useCallback(async () => {
     if (pipWinRef.current) {
@@ -964,10 +1157,13 @@ export function useFocusTimer(userId: string | null) {
     }
     try {
       const pipWin = await (window as any).documentPictureInPicture.requestWindow({
-        width: 300,
-        height: 290,
+        width: 320,
+        height: 400,
       });
       pipWinRef.current = pipWin;
+      const fontLinkContainer = pipWin.document.createElement('div');
+      fontLinkContainer.innerHTML = widgetFontLink;
+      Array.from(fontLinkContainer.children).forEach((el) => pipWin.document.head.appendChild(el));
       const st = pipWin.document.createElement('style');
       st.textContent = widgetCSS;
       pipWin.document.head.appendChild(st);
@@ -975,6 +1171,7 @@ export function useFocusTimer(userId: string | null) {
       container.innerHTML = widgetBodyHTML();
       pipWin.document.body.appendChild(container);
       pipContainerRef.current = container;
+      applyWidgetState(container, s.current.display);
       pipWin.addEventListener('pagehide', () => {
         pipWinRef.current = null;
         pipContainerRef.current = null;
@@ -984,13 +1181,26 @@ export function useFocusTimer(userId: string | null) {
       pipContainerRef.current = null;
       if (err?.name !== 'NotAllowedError') openWindowPopout();
     }
-  }, [openWindowPopout, widgetBodyHTML]);
+  }, [openWindowPopout, widgetBodyHTML, applyWidgetState, widgetCSS]);
 
   const hasPiP = 'documentPictureInPicture' in window;
   const openPopout = useCallback(() => {
     if (hasPiP) void openDocumentPiP();
     else openWindowPopout();
   }, [hasPiP, openDocumentPiP, openWindowPopout]);
+
+  // Check the lock on mount, and whenever another tab writes/clears it
+  // (the 'storage' event only fires in *other* tabs, which is exactly what
+  // we want here — each tab reacts to everyone else's changes).
+  useEffect(() => {
+    refreshLockStatus();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === LOCK_KEY) refreshLockStatus();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return {
     state: s.current,
@@ -1004,6 +1214,7 @@ export function useFocusTimer(userId: string | null) {
       updateCycleLabel,
       removeCycle,
       loadScheduleFromTemplate,
+      configureFromSnapshot,
       requestStart,
       doStart,
       stopAndReset,
@@ -1012,6 +1223,7 @@ export function useFocusTimer(userId: string | null) {
       continueNextCycle,
       checkForInterruptedSession,
       resumeSession,
+      doResume,
       dismissResume,
       closeReview,
       refreshIdleDisplay,

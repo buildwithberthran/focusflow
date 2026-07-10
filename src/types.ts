@@ -79,4 +79,6 @@ export interface DisplayState {
   progress: string;
   task: string;
   paused: boolean;
+  fraction: number; // 0..1 remaining, for progress rings
+  isBreak: boolean;
 }

@@ -6,75 +6,48 @@ export default function CoverPage() {
 
   return (
     <div className="cover-page">
-      <div className="cover-noise" aria-hidden="true" />
+      <div className="cover-drift" aria-hidden="true" />
+      <div className="cover-grain" aria-hidden="true" />
 
       <header className="cover-topbar">
-        <span className="cover-mark">⏱ FocusFlow</span>
+        <span className="cover-mark">⏱</span>
+        <span className="cover-name">FocusFlow</span>
       </header>
 
       <main className="cover-hero">
-        <div className="cover-copy">
-          <span className="cover-eyebrow">Adaptive focus timer</span>
-          <h1 className="cover-headline">
-            Cycles that shrink
-            <br />
-            as your focus does.
-          </h1>
-          <p className="cover-sub">
-            Most timers make you repeat the same 25 minutes forever. FocusFlow starts long and
-            tapers automatically, so the work matches how attention actually fades across a
-            session — with real breaks in between.
-          </p>
-
-          <button className="cover-cta" onClick={() => signInWithGoogle()}>
-            <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
-              <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.1 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/>
-              <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.6 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.1 29.5 4 24 4 16.3 4 9.6 8.3 6.3 14.7z"/>
-              <path fill="#4CAF50" d="M24 44c5.4 0 10.3-2.1 14-5.5l-6.5-5.3C29.5 34.7 26.9 36 24 36c-5.3 0-9.7-3.1-11.3-7.5l-6.6 5.1C9.5 39.6 16.2 44 24 44z"/>
-              <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.3 5.7l6.5 5.3C40.9 36.5 44 30.9 44 24c0-1.3-.1-2.7-.4-3.5z"/>
-            </svg>
-            Continue with Google
-          </button>
-          <p className="cover-trust">Free · no password · your sessions stay private to your account</p>
-
-          <ul className="cover-features">
-            <li>
-              <span className="cf-icon">⏱</span>
-              <span className="cf-text">
-                <strong>Decreasing cycles</strong> — taper from a long start to a short finish
-              </span>
-            </li>
-            <li>
-              <span className="cf-icon">📋</span>
-              <span className="cf-text">
-                <strong>Session history</strong> — completion rates and notes for every cycle
-              </span>
-            </li>
-            <li>
-              <span className="cf-icon">📐</span>
-              <span className="cf-text">
-                <strong>Templates</strong> — save a schedule once, reuse it anytime
-              </span>
-            </li>
-          </ul>
+        <div className="cover-eyebrow">A configurable focus system</div>
+        <h1 className="cover-headline">
+          Design your sessions.
+          <br />
+          <b>Keep the record.</b>
+        </h1>
+        <p className="cover-sub">
+          Set your own cycles, breaks, and reminders. Every session logs what you worked on and
+          where you lost focus, so you always know exactly where your time went.
+        </p>
+        <div className="cover-tags">
+          custom cycles<span>·</span>flexible breaks<span>·</span>reminders<span>·</span>full history
         </div>
 
-        <div className="cover-visual" aria-hidden="true">
-          <div className="cover-descent">
-            {[92, 78, 66, 54, 42, 30, 20].map((h, i) => (
-              <div className="descent-bar" key={i} style={{ ['--h' as any]: h + '%' }}>
-                <span className="descent-glow" />
-              </div>
-            ))}
-          </div>
-          <div className="cover-descent-caption">
-            <span className="dot dot-focus" /> focus
-            <span className="dot dot-rest" /> rest
-          </div>
+        <div className="cover-cta-wrap">
+          <button className="cover-cta" onClick={() => signInWithGoogle()}>
+            Get Started
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
+          </button>
+          <div className="cover-trust">via Google · no password needed</div>
+        </div>
+
+        <div className="cover-ring-wrap" aria-hidden="true">
+          <svg viewBox="0 0 120 120">
+            <circle className="cover-ring-track" cx="60" cy="60" r="54" />
+            <circle className="cover-ring-fill" cx="60" cy="60" r="54" />
+          </svg>
+          <div className="cover-ring-label">18:00</div>
         </div>
       </main>
-
-      <footer className="cover-footer">FocusFlow · built for deep, unglamorous work</footer>
     </div>
   );
 }
