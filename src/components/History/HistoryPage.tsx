@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pencil, Check, X } from 'lucide-react';
 import type { CycleLogRow, SessionRow } from '../../types';
 import { dbListAllCycleLogs, dbListCycleLogsForSessions, dbListSessions, dbRenameSession } from '../../lib/db';
+import { formatDurationExact } from '../../lib/time';
 
 export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
@@ -350,7 +351,7 @@ function SessionItem({
                 {l.task_label || '—'}
                 {l.paused_seconds > 0 && (
                   <span className="clr-paused">
-                    ⏸ paused {formatPause(l.paused_seconds)}
+                    ⏸ paused {formatDurationExact(l.paused_seconds)}
                   </span>
                 )}
               </span>
@@ -364,11 +365,3 @@ function SessionItem({
   );
 }
 
-function formatPause(totalSeconds: number): string {
-  const mins = Math.round(totalSeconds / 60);
-  if (mins < 1) return `${totalSeconds}s`;
-  if (mins < 60) return `${mins}m`;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return m ? `${h}h ${m}m` : `${h}h`;
-}

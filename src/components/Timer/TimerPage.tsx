@@ -10,7 +10,9 @@ import ModeModal from '../Modals/ModeModal';
 import ReviewModal from '../Modals/ReviewModal';
 import TemplateNameModal from '../Modals/TemplateNameModal';
 
-export default function TimerPage() {
+import type { Page } from '../Layout/AppShell';
+
+export default function TimerPage({ onNavigate }: { onNavigate: (p: Page) => void }) {
   const { state, actions, derived } = useTimerEngine();
   const { templates, refresh } = useTemplates();
   const [selectedTplId, setSelectedTplId] = useState('');
@@ -41,7 +43,13 @@ export default function TimerPage() {
       </div>
 
       <StatsBar />
-      <ResumeBanner />
+      <ResumeBanner onNavigate={onNavigate} />
+      {state.lockedByOtherTab && (
+        <div className="recover-notice">
+          A FocusFlow session is already running in another tab. Finish or reset it there before
+          starting a new one here.
+        </div>
+      )}
 
       <div className="timer-grid">
         {/* ── Live timer card ── */}

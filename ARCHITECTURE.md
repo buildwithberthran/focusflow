@@ -41,6 +41,21 @@ you'd touch to change it.
 | `src/components/History/HistoryPage.tsx` | Summary cards, per-task breakdown, sessions grouped by date, inline session rename, per-cycle paused-time annotation, CSV export. |
 | `src/components/Templates/TemplatesPage.tsx` | The saved-template list (Use / Delete). |
 
+## Recovering interrupted sessions
+
+| File | What it controls |
+|---|---|
+| `src/components/Recover/RecoverPage.tsx` | Dedicated page listing every session that didn't finish cleanly. Resume (if a snapshot exists), Restart (same config, fresh run), or End each one. Replaces the old behavior of the resume banner popping up unpredictably. |
+| `src/hooks/useRecoverableCount.ts` | Small badge count shown on the sidebar's "Recover" nav item. |
+
+## Cross-tab safety
+
+`src/hooks/useFocusTimer.ts` writes a lightweight lock to `localStorage` (`focusflow:active-lock`) whenever a session starts or resumes, and clears it when that session ends. Other tabs pick this up instantly via the browser's `storage` event and refuse to start a second, conflicting session — this fixes the "two tabs show inconsistent state" bug. It does **not** mirror the live countdown between tabs second-by-second (that would need a shared timer authority broadcasting ticks — a bigger change than a lock); each tab still ticks its own view of whichever session it owns.
+
+## Time formatting
+
+`src/lib/time.ts` — the single source of truth for exact, non-rounding time display (`formatClock` for the live MM:SS/HH:MM:SS timer, `formatDurationExact` for History's paused-time annotations). If a duration anywhere in the app ever looks rounded, it's not using this.
+
 ## Branding
 
 | File | What it controls |

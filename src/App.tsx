@@ -6,6 +6,7 @@ import AppShell, { type Page } from './components/Layout/AppShell';
 import TimerPage from './components/Timer/TimerPage';
 import HistoryPage from './components/History/HistoryPage';
 import TemplatesPage from './components/Templates/TemplatesPage';
+import RecoverPage from './components/Recover/RecoverPage';
 
 function AuthedApp() {
   const [page, setPage] = useState<Page>('timer');
@@ -13,9 +14,10 @@ function AuthedApp() {
   return (
     <TimerEngineProvider>
       <AppShell page={page} onNavigate={setPage}>
-        {page === 'timer' && <TimerPage />}
+        {page === 'timer' && <TimerPage onNavigate={setPage} />}
         {page === 'history' && <HistoryPage />}
         {page === 'templates' && <TemplatesPage onNavigate={setPage} />}
+        {page === 'recover' && <RecoverPage onNavigate={setPage} />}
       </AppShell>
     </TimerEngineProvider>
   );

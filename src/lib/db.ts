@@ -110,29 +110,59 @@ export async function dbDeleteSnapshot(sessionId: string) {
   if (error) console.warn('Snapshot delete failed:', error.message);
 }
 
-export async function dbFindInterruptedSession(): Promise<{
-  session: SessionRow;
-  snapshot: SnapshotRow;
-} | null> {
-  const { data: sessions, error } = await supabase
+// Non-destructive: never mutates session status as a side effect of reading.
+// (Previously this silently flipped an "active" session to "interrupted" the
+// instant it couldn't find a snapshot yet — which could fire on a session
+// that was still genuinely running, just mid-write. Reads should never mutate.)
+export async function dbFindInterruptedSession(
+  excludeSessionId?: string | null
+): Promise<{ session: SessionRow; snapshot: SnapshotRow } | null> {
+  let query = supabase
     .from('sessions')
     .select('*')
     .eq('status', 'active')
     .order('started_at', { ascending: false })
-    .limit(1);
+    .limit(5);
+  const { data: sessions, error } = await query;
   if (error || !sessions || !sessions.length) return null;
-  const session = sessions[0] as SessionRow;
+
+  const candidates = excludeSessionId ? sessions.filter((s) => s.id !== excludeSessionId) : sessions;
+  if (!candidates.length) return null;
+  const session = candidates[0] as SessionRow;
 
   const { data: snaps } = await supabase
     .from('session_snapshots')
     .select('*')
     .eq('session_id', session.id);
 
-  if (!snaps || !snaps.length) {
-    await supabase.from('sessions').update({ status: 'interrupted' }).eq('id', session.id);
-    return null;
-  }
+  if (!snaps || !snaps.length) return null;
   return { session, snapshot: snaps[0] as SnapshotRow };
+}
+
+export interface RecoverableSession {
+  session: SessionRow;
+  snapshot: SnapshotRow | null;
+}
+
+// Everything that isn't cleanly finished — for the dedicated recovery page.
+export async function dbListRecoverableSessions(excludeSessionId?: string | null): Promise<RecoverableSession[]> {
+  const { data: sessions, error } = await supabase
+    .from('sessions')
+    .select('*')
+    .in('status', ['active', 'interrupted'])
+    .order('started_at', { ascending: false })
+    .limit(50);
+  if (error || !sessions) return [];
+
+  const candidates = (excludeSessionId ? sessions.filter((s) => s.id !== excludeSessionId) : sessions) as SessionRow[];
+  if (!candidates.length) return [];
+
+  const ids = candidates.map((s) => s.id);
+  const { data: snaps } = await supabase.from('session_snapshots').select('*').in('session_id', ids);
+  const snapBySession: Record<string, SnapshotRow> = {};
+  (snaps || []).forEach((sn) => (snapBySession[sn.session_id] = sn as SnapshotRow));
+
+  return candidates.map((session) => ({ session, snapshot: snapBySession[session.id] || null }));
 }
 
 export async function dbAbandonSession(sessionId: string) {
@@ -193,6 +223,14 @@ export async function dbInsertTemplate(
   const { error } = await supabase
     .from('templates')
     .insert({ user_id: userId, name, break_seconds: breakSeconds, schedule });
+  if (error) throw error;
+}
+
+export async function dbUpdateTemplate(
+  id: string,
+  updates: { name?: string; break_seconds?: number; schedule?: CycleItem[] }
+) {
+  const { error } = await supabase.from('templates').update(updates).eq('id', id);
   if (error) throw error;
 }
 

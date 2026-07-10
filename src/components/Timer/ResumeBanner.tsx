@@ -1,7 +1,8 @@
 import { useTimerEngine } from '../../context/TimerEngineContext';
+import type { Page } from '../Layout/AppShell';
 
-export default function ResumeBanner() {
-  const { state, actions } = useTimerEngine();
+export default function ResumeBanner({ onNavigate }: { onNavigate: (p: Page) => void }) {
+  const { state } = useTimerEngine();
   if (!state.resumeBannerVisible) return null;
 
   return (
@@ -9,8 +10,7 @@ export default function ResumeBanner() {
       <div className="resume-banner-title">📌 Interrupted session found</div>
       <div className="resume-banner-sub">{state.resumeBannerSub}</div>
       <div className="resume-banner-btns">
-        <button onClick={() => actions.resumeSession()}>▶ Resume Session</button>
-        <button onClick={() => actions.dismissResume()}>✕ Start Fresh</button>
+        <button onClick={() => onNavigate('recover')}>Manage in Recover →</button>
       </div>
     </div>
   );
