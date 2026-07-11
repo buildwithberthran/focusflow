@@ -13,6 +13,7 @@ import type {
 } from '../types';
 import {
   announceBreakStart,
+  announceEndingSoon,
   announceNextCycleStart,
   cancelSpeech,
   playBeep,
@@ -27,6 +28,7 @@ import {
   dbSaveSnapshot,
   dbStartCycle,
   dbStartSession,
+  dbUpdateCycleLog,
 } from '../lib/db';
 import { formatClock } from '../lib/time';
 
@@ -66,6 +68,7 @@ export interface EngineState {
   currentSessionId: string | null;
   currentCycleLogId: string | null;
   pausedSecondsInCycle: number;
+  pendingBreakPauseReason: string | null;
   errorMsg: string;
   display: DisplayState;
   lockedByOtherTab: boolean;
@@ -75,6 +78,11 @@ export interface EngineState {
   reviewModalOpen: boolean;
   reviewQuestion: string;
   tplNameModalOpen: boolean;
+
+  // long-pause reason prompt
+  pauseReasonPromptOpen: boolean;
+  pauseReasonContext: 'cycle' | 'break' | null;
+  pauseReasonAwaySeconds: number;
 
   // resume banner
   resumeBannerVisible: boolean;
@@ -117,6 +125,7 @@ function initialState(): EngineState {
     currentSessionId: null,
     currentCycleLogId: null,
     pausedSecondsInCycle: 0,
+    pendingBreakPauseReason: null,
     errorMsg: '',
     display: { time: '30:00', cycle: 'Ready', status: '', progress: '', task: '', paused: false, fraction: 1, isBreak: false },
     lockedByOtherTab: false,
@@ -125,6 +134,10 @@ function initialState(): EngineState {
     reviewModalOpen: false,
     reviewQuestion: '',
     tplNameModalOpen: false,
+
+    pauseReasonPromptOpen: false,
+    pauseReasonContext: null,
+    pauseReasonAwaySeconds: 0,
 
     resumeBannerVisible: false,
     resumeBannerSub: '',
@@ -152,9 +165,14 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
   const intervalRef = useRef<number | null>(null);
   const runTokenRef = useRef(0);
   const pauseStartedAtRef = useRef<number | null>(null);
+  const pendingResumeElapsedRef = useRef<number>(0);
   const settingsRef = useRef<UserSettings | null>(settings);
   settingsRef.current = settings;
   const getTransitionSeconds = useCallback(() => settingsRef.current?.transition_seconds ?? 3, []);
+  const getBreakTransitionSeconds = useCallback(
+    () => (settingsRef.current?.transition_before_break === false ? 0 : settingsRef.current?.transition_seconds ?? 3),
+    []
+  );
   const reviewResolveRef = useRef<((v: { answer: 'yes' | 'no' | null; note: string }) => void) | null>(
     null
   );
@@ -431,7 +449,7 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
       await dbEndSession(s.current.currentSessionId, s.current.completedCyclesCount, 'completed');
     }
     clearLockIfOwned();
-    patch({ phase: 'finished', currentSessionId: null });
+    patch({ phase: 'finished', currentSessionId: null, currentCycleLogId: null });
     syncDisplay('00:00', '🎉 Finished!', 'All cycles complete.');
   }, [clearTimer, patch, syncDisplay, clearLockIfOwned]);
 
@@ -495,7 +513,7 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
       const cycleLabel = `Circle ${completedNum} complete`;
       const timeStr = fmt(s.current.remainingSeconds);
       syncDisplay(timeStr, cycleLabel, '📣 Break starting…');
-      await announceBreakStart(getAlertSound(), completedNum, sv, getTransitionSeconds(), (remaining) =>
+      await announceBreakStart(getAlertSound(), completedNum, sv, getBreakTransitionSeconds(), (remaining) =>
         syncDisplay(timeStr, cycleLabel, `📣 Break starting in ${remaining}…`)
       );
       if (!sv()) return;
@@ -522,7 +540,7 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
       clearTimer();
       intervalRef.current = window.setInterval(() => tickRef.current(), 1000);
     },
-    [patch, syncDisplay, getAlertSound, saveSnapshot, getCurrentLabel, openReviewModal, getBreakSeconds, clearTimer, getTransitionSeconds]
+    [patch, syncDisplay, getAlertSound, saveSnapshot, getCurrentLabel, openReviewModal, getBreakSeconds, clearTimer, getBreakTransitionSeconds]
   );
 
   const transitionToNextCycle = useCallback(
@@ -541,6 +559,15 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
           nextLabel
         );
         patch({ currentCycleLogId: logId, pausedSecondsInCycle: 0 });
+        if (logId && s.current.pendingBreakPauseReason) {
+          const reason = s.current.pendingBreakPauseReason;
+          patch({ pendingBreakPauseReason: null });
+          try {
+            await dbUpdateCycleLog(logId, { break_pause_reason: reason });
+          } catch (e) {
+            console.warn('Saving break pause reason failed:', e);
+          }
+        }
       }
 
       await saveSnapshot('this_cycle');
@@ -578,6 +605,10 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
       const remaining = s.current.remainingSeconds > 0 ? s.current.remainingSeconds - 1 : 0;
       patch({ remainingSeconds: remaining });
       syncDisplay(fmt(remaining), `Cycle: ${s.current.currentCycleMin} min`, '');
+      const endAlertSecs = settingsRef.current?.end_alert_seconds ?? 0;
+      if (settingsRef.current?.end_alert_enabled && remaining > 0 && remaining === endAlertSecs) {
+        announceEndingSoon(getAlertSound(), remaining);
+      }
       if (remaining === 0) {
         const completedNum = cycleNumber();
         const isLast =
@@ -649,18 +680,68 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
     syncDisplay(fmt(s.current.remainingSeconds), cycle, status);
   }, [patch, clearTimer, saveSnapshot, syncDisplay]);
 
+  const performResume = useCallback(
+    (elapsedSeconds: number) => {
+      const p = s.current.phaseBeforePause as Phase;
+      patch({ pausedSecondsInCycle: s.current.pausedSecondsInCycle + elapsedSeconds, phase: p, phaseBeforePause: null });
+      pauseStartedAtRef.current = null;
+      intervalRef.current = window.setInterval(() => tickRef.current(), 1000);
+    },
+    [patch]
+  );
+
   const resumeTimer = useCallback(() => {
     if (s.current.phase !== 'paused') return;
     const p = s.current.phaseBeforePause as Phase;
-    if (pauseStartedAtRef.current !== null) {
-      const elapsed = Math.round((Date.now() - pauseStartedAtRef.current) / 1000);
-      patch({ pausedSecondsInCycle: s.current.pausedSecondsInCycle + elapsed, phase: p, phaseBeforePause: null });
-      pauseStartedAtRef.current = null;
-    } else {
-      patch({ phase: p, phaseBeforePause: null });
+    const elapsed = pauseStartedAtRef.current !== null ? Math.round((Date.now() - pauseStartedAtRef.current) / 1000) : 0;
+
+    const settings = settingsRef.current;
+    if (settings?.long_pause_check_enabled) {
+      let thresholdSeconds = 0;
+      if (p === 'countdown') {
+        thresholdSeconds = settings.long_pause_cycle_minutes * 60;
+      } else if (p === 'break') {
+        const breakSecs = getBreakSeconds();
+        thresholdSeconds =
+          settings.long_pause_break_mode === 'percent'
+            ? Math.round(breakSecs * (1 + settings.long_pause_break_percent / 100))
+            : breakSecs + settings.long_pause_break_minutes * 60;
+      }
+      if (thresholdSeconds > 0 && elapsed > thresholdSeconds) {
+        pendingResumeElapsedRef.current = elapsed;
+        patch({
+          pauseReasonPromptOpen: true,
+          pauseReasonContext: p === 'break' ? 'break' : 'cycle',
+          pauseReasonAwaySeconds: elapsed,
+        });
+        return; // stay paused — performResume runs once the modal resolves
+      }
     }
-    intervalRef.current = window.setInterval(() => tickRef.current(), 1000);
-  }, [patch]);
+
+    performResume(elapsed);
+  }, [patch, performResume, getBreakSeconds]);
+
+  const resolvePauseReason = useCallback(
+    async (reason: string) => {
+      const context = s.current.pauseReasonContext;
+      const elapsed = pendingResumeElapsedRef.current;
+      const trimmed = reason.trim();
+      patch({ pauseReasonPromptOpen: false, pauseReasonContext: null, pauseReasonAwaySeconds: 0 });
+
+      if (context === 'cycle' && trimmed && s.current.currentCycleLogId) {
+        try {
+          await dbUpdateCycleLog(s.current.currentCycleLogId, { pause_reason: trimmed });
+        } catch (e) {
+          console.warn('Saving pause reason failed:', e);
+        }
+      } else if (context === 'break' && trimmed) {
+        patch({ pendingBreakPauseReason: trimmed });
+      }
+
+      performResume(elapsed);
+    },
+    [patch, performResume]
+  );
 
   const continueNextCycle = useCallback(() => {
     if (s.current.phase !== 'waiting') return;
@@ -776,20 +857,32 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
     runTokenRef.current++;
     clearTimer();
     pauseStartedAtRef.current = null;
-    if (s.current.reviewModalOpen) {
-      patch({ reviewModalOpen: false });
-      if (reviewResolveRef.current) {
-        reviewResolveRef.current({ answer: null, note: '' });
-        reviewResolveRef.current = null;
+    // 'finished' means the session already completed cleanly (finishAll()
+    // already recorded it and cleared these IDs) — Reset here is just "clear
+    // the finished screen," never something to abandon. Previously this
+    // still ran the abandon logic below, which had one lingering side effect:
+    // currentCycleLogId wasn't cleared by finishAll, so clicking Reset after
+    // finishing would silently overwrite the already-completed last cycle's
+    // log with completed=null/'[abandoned]'.
+    const wasActuallyActive = s.current.phase !== 'idle' && s.current.phase !== 'finished';
+
+    if (wasActuallyActive) {
+      if (s.current.reviewModalOpen) {
+        patch({ reviewModalOpen: false });
+        if (reviewResolveRef.current) {
+          reviewResolveRef.current({ answer: null, note: '' });
+          reviewResolveRef.current = null;
+        }
       }
+      if (s.current.currentCycleLogId) {
+        await dbEndCycle(s.current.currentCycleLogId, null, '[abandoned]', s.current.pausedSecondsInCycle);
+      }
+      if (s.current.currentSessionId) {
+        await dbEndSession(s.current.currentSessionId, s.current.completedCyclesCount, 'interrupted');
+      }
+      clearLockIfOwned();
     }
-    if (s.current.currentCycleLogId) {
-      await dbEndCycle(s.current.currentCycleLogId, null, '[abandoned]', s.current.pausedSecondsInCycle);
-    }
-    if (s.current.currentSessionId) {
-      await dbEndSession(s.current.currentSessionId, s.current.completedCyclesCount, 'interrupted');
-    }
-    clearLockIfOwned();
+
     cancelSpeech();
     patch({
       phase: 'idle',
@@ -1325,6 +1418,7 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
       stopAndReset,
       pauseTimer,
       resumeTimer,
+      resolvePauseReason,
       continueNextCycle,
       checkForInterruptedSession,
       resumeSession,

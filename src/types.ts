@@ -41,6 +41,8 @@ export interface CycleLogRow {
   completed: boolean | null;
   log_note: string | null;
   paused_seconds: number;
+  pause_reason: string | null;
+  break_pause_reason: string | null;
   started_at: string;
   ended_at: string | null;
 }
@@ -84,6 +86,14 @@ export interface UserSettings {
   default_break_seconds_target: number;
   default_alert_sound: AlertSound;
   transition_seconds: number;
+  transition_before_break: boolean;
+  end_alert_enabled: boolean;
+  end_alert_seconds: number;
+  long_pause_check_enabled: boolean;
+  long_pause_cycle_minutes: number;
+  long_pause_break_mode: 'percent' | 'minutes';
+  long_pause_break_percent: number;
+  long_pause_break_minutes: number;
   theme: Theme;
   updated_at: string;
 }

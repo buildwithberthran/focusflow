@@ -17,6 +17,14 @@ const DEFAULT_SETTINGS: Omit<UserSettings, 'user_id' | 'updated_at'> = {
   default_break_seconds_target: 10,
   default_alert_sound: 'beep',
   transition_seconds: 3,
+  transition_before_break: true,
+  end_alert_enabled: false,
+  end_alert_seconds: 10,
+  long_pause_check_enabled: false,
+  long_pause_cycle_minutes: 15,
+  long_pause_break_mode: 'percent',
+  long_pause_break_percent: 50,
+  long_pause_break_minutes: 5,
   theme: 'dark',
 };
 
@@ -102,6 +110,16 @@ export async function dbEndCycle(
     })
     .eq('id', cycleLogId);
   if (error) console.warn('DB cycle update:', error.message);
+}
+
+// General-purpose partial update — used for attaching a pause reason, and
+// for retroactively correcting completed/log_note from the History page.
+export async function dbUpdateCycleLog(
+  cycleLogId: string,
+  updates: Partial<Pick<CycleLogRow, 'completed' | 'log_note' | 'pause_reason' | 'break_pause_reason'>>
+) {
+  const { error } = await supabase.from('cycle_logs').update(updates).eq('id', cycleLogId);
+  if (error) throw error;
 }
 
 export async function dbRenameSession(sessionId: string, name: string) {

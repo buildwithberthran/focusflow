@@ -1,8 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pencil, Check, X } from 'lucide-react';
+import { Pencil, Check, X, Clock, MessageCircle, PauseCircle, Coffee, CheckCircle2, XCircle, HelpCircle } from 'lucide-react';
 import type { CycleLogRow, SessionRow } from '../../types';
-import { dbListAllCycleLogs, dbListCycleLogsForSessions, dbListSessions, dbRenameSession } from '../../lib/db';
+import {
+  dbListAllCycleLogs,
+  dbListCycleLogsForSessions,
+  dbListSessions,
+  dbRenameSession,
+  dbUpdateCycleLog,
+} from '../../lib/db';
 import { formatDurationExact } from '../../lib/time';
+
+function timeStr(iso: string | null): string | null {
+  if (!iso) return null;
+  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
 
 export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
@@ -49,6 +60,8 @@ export default function HistoryPage() {
           'Task Label',
           'Completed',
           'Notes',
+          'Pause Reason',
+          'Break Pause Reason',
           'Cycle Start',
           'Cycle End',
         ],
@@ -66,6 +79,8 @@ export default function HistoryPage() {
           l.task_label || '',
           l.completed === true ? 'Yes' : l.completed === false ? 'No' : '',
           l.log_note || '',
+          l.pause_reason || '',
+          l.break_pause_reason || '',
           l.started_at || '',
           l.ended_at || '',
         ]);
@@ -112,7 +127,7 @@ export default function HistoryPage() {
       )}
 
       {!loading && !error && sessions.length > 0 && (
-        <HistoryBody sessions={sessions} logs={logs} openIds={openIds} onToggle={toggle} onRenamed={load} />
+        <HistoryBody sessions={sessions} logs={logs} openIds={openIds} onToggle={toggle} onRefresh={load} />
       )}
     </div>
   );
@@ -123,13 +138,13 @@ function HistoryBody({
   logs,
   openIds,
   onToggle,
-  onRenamed,
+  onRefresh,
 }: {
   sessions: SessionRow[];
   logs: CycleLogRow[];
   openIds: Set<string>;
   onToggle: (id: string) => void;
-  onRenamed: () => void;
+  onRefresh: () => void;
 }) {
   const bySession: Record<string, CycleLogRow[]> = {};
   logs.forEach((l) => {
@@ -213,7 +228,7 @@ function HistoryBody({
               logs={bySession[sess.id] || []}
               open={openIds.has(sess.id)}
               onToggle={() => onToggle(sess.id)}
-              onRenamed={onRenamed}
+              onRefresh={onRefresh}
             />
           ))}
         </div>
@@ -255,19 +270,20 @@ function SessionItem({
   logs: sLogs,
   open,
   onToggle,
-  onRenamed,
+  onRefresh,
 }: {
   session: SessionRow;
   logs: CycleLogRow[];
   open: boolean;
   onToggle: () => void;
-  onRenamed: () => void;
+  onRefresh: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState(s.name || '');
   const [saving, setSaving] = useState(false);
 
-  const sTime = new Date(s.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const startTime = timeStr(s.started_at);
+  const endTime = timeStr(s.finished_at);
   const sDone = sLogs.filter((l) => l.completed === true).length;
   const sPct = sLogs.length > 0 ? Math.round((sDone / sLogs.length) * 100) : 0;
   const sMin = sLogs.reduce((a, l) => a + (l.duration_min || 0), 0);
@@ -278,7 +294,7 @@ function SessionItem({
     setSaving(true);
     try {
       await dbRenameSession(s.id, draftName);
-      onRenamed();
+      onRefresh();
     } catch (e: any) {
       alert('Rename failed: ' + e.message);
     } finally {
@@ -313,7 +329,7 @@ function SessionItem({
             </div>
           ) : (
             <div className="session-date">
-              {statusIcon} {s.name || <span className="session-untitled">Untitled session</span>} · {sTime}
+              {statusIcon} {s.name || <span className="session-untitled">Untitled session</span>}
               <button
                 className="icon-btn rename-btn"
                 title="Rename"
@@ -330,6 +346,10 @@ function SessionItem({
           <div className="session-sub">
             {s.mode} · {sLogs.length} cycles · {sMin} min · {sPct}% done · {s.status}
           </div>
+          <div className="session-time-range">
+            {startTime ? `Started ${startTime}` : ''}
+            {endTime ? ` · Ended ${endTime}` : s.status === 'active' ? ' · Still active' : ''}
+          </div>
         </div>
         <span className={'session-badge' + (s.status === 'interrupted' ? ' interrupted' : '')}>
           {s.autopilot ? '🤖' : '🖐'}
@@ -340,28 +360,139 @@ function SessionItem({
         {!sLogs.length && (
           <div style={{ fontSize: '0.8rem', color: '#5a6a88', padding: '6px 0' }}>No cycle data.</div>
         )}
-        {sLogs.map((l) => {
-          const dc = l.completed === true ? 'yes' : l.completed === false ? 'no' : 'skip';
-          const dt = l.completed === true ? '✓ Yes' : l.completed === false ? '✗ No' : '–';
-          return (
-            <div className="cycle-log-row" key={l.id}>
-              <span className="clr-num">{l.cycle_number}</span>
-              <span className="clr-dur">{l.duration_min}m</span>
-              <span className="clr-task">
-                {l.task_label || '—'}
-                {l.paused_seconds > 0 && (
-                  <span className="clr-paused">
-                    ⏸ paused {formatDurationExact(l.paused_seconds)}
-                  </span>
-                )}
-              </span>
-              <span className={'clr-done ' + dc}>{dt}</span>
-              {l.log_note && <span className="clr-note">{l.log_note}</span>}
-            </div>
-          );
-        })}
+        {sLogs.map((l) => (
+          <CycleLogCard key={l.id} log={l} onRefresh={onRefresh} />
+        ))}
       </div>
     </div>
   );
 }
 
+function CycleLogCard({ log: l, onRefresh }: { log: CycleLogRow; onRefresh: () => void }) {
+  const [editingReview, setEditingReview] = useState(false);
+  const [draftCompleted, setDraftCompleted] = useState<'yes' | 'no' | null>(
+    l.completed === true ? 'yes' : l.completed === false ? 'no' : null
+  );
+  const [draftNote, setDraftNote] = useState(l.log_note || '');
+  const [saving, setSaving] = useState(false);
+
+  const startTime = timeStr(l.started_at);
+  const endTime = timeStr(l.ended_at);
+  const statusTone = l.completed === true ? 'yes' : l.completed === false ? 'no' : 'unknown';
+
+  async function saveReview() {
+    setSaving(true);
+    try {
+      await dbUpdateCycleLog(l.id, {
+        completed: draftCompleted === null ? null : draftCompleted === 'yes',
+        log_note: draftNote,
+      });
+      onRefresh();
+      setEditingReview(false);
+    } catch (e: any) {
+      alert('Update failed: ' + e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="cycle-card">
+      <div className="cycle-card-top">
+        <span className="cycle-card-num">Cycle {l.cycle_number}</span>
+        <span className="cycle-duration-pill">
+          <strong>{l.duration_min}</strong> MIN
+        </span>
+      </div>
+
+      <div className="cycle-card-task">{l.task_label || <span className="cycle-card-task-empty">No task label</span>}</div>
+
+      {startTime && (
+        <div className="cycle-card-row">
+          <Clock size={12} strokeWidth={2.2} />
+          {endTime ? `${startTime} – ${endTime}` : `Started ${startTime}`}
+        </div>
+      )}
+
+      {l.paused_seconds > 0 && (
+        <div className="cycle-card-row tone-amber">
+          <PauseCircle size={12} strokeWidth={2.2} />
+          Paused {formatDurationExact(l.paused_seconds)}
+          {l.pause_reason && <span className="cycle-card-reason">— "{l.pause_reason}"</span>}
+        </div>
+      )}
+
+      {l.break_pause_reason && (
+        <div className="cycle-card-row tone-amber">
+          <Coffee size={12} strokeWidth={2.2} />
+          Break before this cycle ran long
+          <span className="cycle-card-reason">— "{l.break_pause_reason}"</span>
+        </div>
+      )}
+
+      {!editingReview && l.log_note && (
+        <div className="cycle-card-row">
+          <MessageCircle size={12} strokeWidth={2.2} />
+          {l.log_note}
+        </div>
+      )}
+
+      <div className="cycle-card-footer">
+        {!editingReview ? (
+          <>
+            <span className={'cycle-status-pill tone-' + statusTone}>
+              {statusTone === 'yes' && <CheckCircle2 size={12} strokeWidth={2.4} />}
+              {statusTone === 'no' && <XCircle size={12} strokeWidth={2.4} />}
+              {statusTone === 'unknown' && <HelpCircle size={12} strokeWidth={2.4} />}
+              {statusTone === 'yes' ? 'Completed' : statusTone === 'no' ? 'Not completed' : 'Not confirmed'}
+            </span>
+            <button className="icon-btn" title="Edit" onClick={() => setEditingReview(true)}>
+              <Pencil size={12} strokeWidth={2.2} />
+            </button>
+          </>
+        ) : (
+          <div className="cycle-review-editor" onClick={(e) => e.stopPropagation()}>
+            <div className="yn-btns" style={{ marginBottom: 8 }}>
+              <button
+                className={'yn-btn yes' + (draftCompleted === 'yes' ? ' selected' : '')}
+                onClick={() => setDraftCompleted('yes')}
+              >
+                ✓ Yes
+              </button>
+              <button
+                className={'yn-btn no' + (draftCompleted === 'no' ? ' selected' : '')}
+                onClick={() => setDraftCompleted('no')}
+              >
+                ✗ No
+              </button>
+              <button
+                className={'yn-btn skip' + (draftCompleted === null ? ' selected' : '')}
+                onClick={() => setDraftCompleted(null)}
+              >
+                ? Unsure
+              </button>
+            </div>
+            <textarea
+              value={draftNote}
+              onChange={(e) => setDraftNote(e.target.value)}
+              placeholder="Notes…"
+              style={{ marginBottom: 8 }}
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                style={{ background: '#3f4a60', color: '#aab2c5', flex: 1 }}
+                onClick={() => setEditingReview(false)}
+                disabled={saving}
+              >
+                Cancel
+              </button>
+              <button style={{ background: '#4caf50', color: '#fff', flex: 1 }} onClick={saveReview} disabled={saving}>
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

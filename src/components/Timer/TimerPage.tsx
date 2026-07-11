@@ -9,6 +9,7 @@ import ProgressRing from './ProgressRing';
 import ModeModal from '../Modals/ModeModal';
 import ReviewModal from '../Modals/ReviewModal';
 import TemplateNameModal from '../Modals/TemplateNameModal';
+import PauseReasonModal from '../Modals/PauseReasonModal';
 
 import type { Page } from '../Layout/AppShell';
 
@@ -391,6 +392,7 @@ export default function TimerPage({ onNavigate }: { onNavigate: (p: Page) => voi
 
       <ModeModal />
       <ReviewModal />
+      <PauseReasonModal />
       <TemplateNameModal onSaved={refresh} />
     </div>
   );

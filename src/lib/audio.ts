@@ -35,6 +35,36 @@ function sleep(ms: number): Promise<void> {
   return new Promise((res) => setTimeout(res, ms));
 }
 
+// A single, distinctive "heads up, this cycle is ending soon" cue — deliberately
+// different from the countdown tones so it doesn't get confused with a
+// cycle-to-cycle transition.
+export function announceEndingSoon(alertSound: 'beep' | 'voice', secondsLeft: number) {
+  if (alertSound === 'voice') {
+    void speakPhrase(`${secondsLeft} seconds left`);
+    return;
+  }
+  try {
+    const ctx = getAudioCtx();
+    [0, 0.18].forEach((d) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'triangle';
+      o.frequency.value = 990;
+      g.gain.value = 0.0001;
+      o.connect(g);
+      g.connect(ctx.destination);
+      const t = ctx.currentTime + d;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.22, t + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+      o.start(t);
+      o.stop(t + 0.2);
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
 function playSingleCountdownTone(index: number, total: number) {
   try {
     const ctx = getAudioCtx();
