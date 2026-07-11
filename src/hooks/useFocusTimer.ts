@@ -9,6 +9,7 @@ import type {
   SnapshotRow,
   SubMode,
   TemplateRow,
+  UserSettings,
 } from '../types';
 import {
   announceBreakStart,
@@ -135,7 +136,7 @@ function fmt(s: number): string {
   return formatClock(s);
 }
 
-export function useFocusTimer(userId: string | null) {
+export function useFocusTimer(userId: string | null, settings: UserSettings | null) {
   const [, setTick] = useState(0);
   const bump = useCallback(() => setTick((t) => t + 1), []);
 
@@ -151,6 +152,9 @@ export function useFocusTimer(userId: string | null) {
   const intervalRef = useRef<number | null>(null);
   const runTokenRef = useRef(0);
   const pauseStartedAtRef = useRef<number | null>(null);
+  const settingsRef = useRef<UserSettings | null>(settings);
+  settingsRef.current = settings;
+  const getTransitionSeconds = useCallback(() => settingsRef.current?.transition_seconds ?? 3, []);
   const reviewResolveRef = useRef<((v: { answer: 'yes' | 'no' | null; note: string }) => void) | null>(
     null
   );
@@ -457,6 +461,9 @@ export function useFocusTimer(userId: string | null) {
 
   const openReviewModal = useCallback(
     (label: string, cycleNum: number): Promise<{ answer: 'yes' | 'no' | null; note: string }> => {
+      if (settingsRef.current?.ask_feedback_after_cycle === false) {
+        return Promise.resolve({ answer: null, note: '' });
+      }
       return new Promise((resolve) => {
         reviewResolveRef.current = resolve;
         patch({
@@ -486,7 +493,7 @@ export function useFocusTimer(userId: string | null) {
       const sv = () => runTokenRef.current === capturedToken;
       patch({ phase: 'announcing-break' });
       syncDisplay(fmt(s.current.remainingSeconds), `Circle ${completedNum} complete`, '📣 Break starting in 3…');
-      await announceBreakStart(getAlertSound(), completedNum, sv);
+      await announceBreakStart(getAlertSound(), completedNum, sv, getTransitionSeconds());
       if (!sv()) return;
 
       await saveSnapshot('next_cycle');
@@ -511,7 +518,7 @@ export function useFocusTimer(userId: string | null) {
       clearTimer();
       intervalRef.current = window.setInterval(() => tickRef.current(), 1000);
     },
-    [patch, syncDisplay, getAlertSound, saveSnapshot, getCurrentLabel, openReviewModal, getBreakSeconds, clearTimer]
+    [patch, syncDisplay, getAlertSound, saveSnapshot, getCurrentLabel, openReviewModal, getBreakSeconds, clearTimer, getTransitionSeconds]
   );
 
   const transitionToNextCycle = useCallback(
@@ -539,7 +546,7 @@ export function useFocusTimer(userId: string | null) {
         `Cycle ${nextNum} — ${s.current.currentCycleMin} min`,
         '📣 Starting in 3…'
       );
-      await announceNextCycleStart(getAlertSound(), nextNum, sv);
+      await announceNextCycleStart(getAlertSound(), nextNum, sv, getTransitionSeconds());
       if (!sv()) return;
 
       if (s.current.autopilot) {
@@ -558,7 +565,7 @@ export function useFocusTimer(userId: string | null) {
         );
       }
     },
-    [advanceToNextCycle, cycleNumber, getCurrentLabel, userId, patch, saveSnapshot, syncDisplay, getAlertSound, clearTimer]
+    [advanceToNextCycle, cycleNumber, getCurrentLabel, userId, patch, saveSnapshot, syncDisplay, getAlertSound, clearTimer, getTransitionSeconds]
   );
 
   const tick = useCallback(() => {
@@ -662,7 +669,7 @@ export function useFocusTimer(userId: string | null) {
       `Cycle ${nextNum} — ${s.current.currentCycleMin} min`,
       '📣 Starting in 3…'
     );
-    announceNextCycleStart(getAlertSound(), nextNum, sv).then(() => {
+    announceNextCycleStart(getAlertSound(), nextNum, sv, getTransitionSeconds()).then(() => {
       if (!sv()) return;
       const secs = s.current.currentCycleMin * 60;
       patch({ phase: 'countdown', remainingSeconds: secs });
@@ -670,7 +677,7 @@ export function useFocusTimer(userId: string | null) {
       clearTimer();
       intervalRef.current = window.setInterval(() => tickRef.current(), 1000);
     });
-  }, [patch, cycleNumber, syncDisplay, getAlertSound, clearTimer]);
+  }, [patch, cycleNumber, syncDisplay, getAlertSound, clearTimer, getTransitionSeconds]);
 
   // ───────────────────────── start / stop ─────────────────────────
   const validateStandard = useCallback((): string | null => {
@@ -691,6 +698,8 @@ export function useFocusTimer(userId: string | null) {
     return null;
   }, []);
 
+  const doStartRef = useRef<(auto: boolean) => void>(() => {});
+
   const requestStart = useCallback(() => {
     patch({ errorMsg: '' });
     refreshLockStatus();
@@ -701,6 +710,11 @@ export function useFocusTimer(userId: string | null) {
     const err = s.current.appMode === 'standard' ? validateStandard() : validateTarget();
     if (err) {
       patch({ errorMsg: err });
+      return;
+    }
+    const startupMode = settingsRef.current?.startup_mode ?? 'ask';
+    if (startupMode === 'autopilot' || startupMode === 'manual') {
+      doStartRef.current(startupMode === 'autopilot');
       return;
     }
     patch({ modeModalOpen: true });
@@ -738,7 +752,7 @@ export function useFocusTimer(userId: string | null) {
       const cap = runTokenRef.current;
       const sv = () => runTokenRef.current === cap && s.current.phase === 'announcing-next';
       syncDisplay(fmt(secs), `Cycle 1 — ${s.current.currentCycleMin} min`, '📣 Starting in 3…');
-      announceNextCycleStart(getAlertSound(), 1, sv).then(() => {
+      announceNextCycleStart(getAlertSound(), 1, sv, getTransitionSeconds()).then(() => {
         if (!sv()) return;
         patch({ phase: 'countdown' });
         syncDisplay(fmt(s.current.remainingSeconds), `Cycle: ${s.current.currentCycleMin} min`, '');
@@ -746,8 +760,9 @@ export function useFocusTimer(userId: string | null) {
         intervalRef.current = window.setInterval(() => tickRef.current(), 1000);
       });
     },
-    [patch, userId, getCurrentLabel, saveSnapshot, syncDisplay, getAlertSound, clearTimer, writeLock]
+    [patch, userId, getCurrentLabel, saveSnapshot, syncDisplay, getAlertSound, clearTimer, writeLock, getTransitionSeconds]
   );
+  doStartRef.current = doStart;
 
   const stopAndReset = useCallback(async () => {
     runTokenRef.current++;
@@ -908,7 +923,7 @@ export function useFocusTimer(userId: string | null) {
 
       syncDisplay(fmt(secs), `Cycle ${cycleNum} — ${currentCycleMin} min (resuming)`, '📣 Resuming in 3…');
 
-      announceNextCycleStart(getAlertSound(), cycleNum, sv).then(() => {
+      announceNextCycleStart(getAlertSound(), cycleNum, sv, getTransitionSeconds()).then(() => {
         if (!sv()) return;
         patch({ phase: 'countdown' });
         syncDisplay(fmt(s.current.remainingSeconds), `Cycle: ${currentCycleMin} min`, '');
@@ -916,7 +931,7 @@ export function useFocusTimer(userId: string | null) {
         intervalRef.current = window.setInterval(() => tickRef.current(), 1000);
       });
     },
-    [patch, userId, getCurrentLabel, syncDisplay, getAlertSound, clearTimer, finishAll, writeLock]
+    [patch, userId, getCurrentLabel, syncDisplay, getAlertSound, clearTimer, finishAll, writeLock, getTransitionSeconds]
   );
 
   const resumeSession = useCallback(async () => {
@@ -1242,6 +1257,23 @@ export function useFocusTimer(userId: string | null) {
     return () => window.removeEventListener('storage', onStorage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Apply the person's saved defaults (break lengths, alert sound) the first
+  // time settings load for this tab — but only while nothing has been
+  // configured yet, so it never clobbers an in-progress edit or a live session.
+  const settingsAppliedRef = useRef(false);
+  useEffect(() => {
+    if (!settings || settingsAppliedRef.current) return;
+    if (s.current.phase !== 'idle') return;
+    settingsAppliedRef.current = true;
+    patch({
+      breakSeconds: settings.default_break_seconds_standard,
+      tBreakSeconds: settings.default_break_seconds_target,
+      alertSound: settings.default_alert_sound,
+      tAlertSound: settings.default_alert_sound,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings]);
 
   return {
     state: s.current,

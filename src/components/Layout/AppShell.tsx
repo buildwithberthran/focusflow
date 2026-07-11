@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import Sidebar from './Sidebar';
 
-export type Page = 'timer' | 'history' | 'templates' | 'recover';
+export type Page = 'timer' | 'history' | 'templates' | 'recover' | 'settings';
 
 export default function AppShell({
   page,

@@ -39,7 +39,7 @@ export default function TimerPage({ onNavigate }: { onNavigate: (p: Page) => voi
     <div id="timerPage" className="page-dashboard">
       <div className="page-header">
         <h1>Dashboard</h1>
-        <p>Cycles taper as you go — long focus blocks up front, shorter ones as attention fades.</p>
+        <p>Configure your sessions, run them your way, and keep a record of exactly where the time went.</p>
       </div>
 
       <StatsBar />

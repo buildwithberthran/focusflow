@@ -7,7 +7,33 @@ import type {
   SessionRow,
   SnapshotRow,
   TemplateRow,
+  UserSettings,
 } from '../types';
+
+const DEFAULT_SETTINGS: Omit<UserSettings, 'user_id' | 'updated_at'> = {
+  startup_mode: 'ask',
+  ask_feedback_after_cycle: true,
+  default_break_seconds_standard: 10,
+  default_break_seconds_target: 10,
+  default_alert_sound: 'beep',
+  transition_seconds: 3,
+  theme: 'dark',
+};
+
+export async function dbGetSettings(userId: string): Promise<UserSettings> {
+  const { data, error } = await supabase.from('user_settings').select('*').eq('user_id', userId).maybeSingle();
+  if (error || !data) {
+    return { user_id: userId, updated_at: new Date().toISOString(), ...DEFAULT_SETTINGS };
+  }
+  return data as UserSettings;
+}
+
+export async function dbUpsertSettings(userId: string, updates: Partial<UserSettings>) {
+  const { error } = await supabase
+    .from('user_settings')
+    .upsert({ user_id: userId, ...updates, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+  if (error) throw error;
+}
 
 export async function dbStartSession(
   userId: string,

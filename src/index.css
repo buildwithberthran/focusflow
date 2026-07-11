@@ -223,17 +223,24 @@ input.invalid { border-color: #e05656; }
 .tpl-save-btn { background: #4f8cff; color: #fff; }
 .tpl-del-btn  { background: transparent; border: 1px solid #3f4a60; color: #e05656; }
 
-/* ── Resume banner ── */
-.resume-banner {
-  background: #1a3a2a; border: 1px solid #2e6e4e; border-radius: 10px;
-  padding: 12px 14px; margin-bottom: 14px;
+/* ── Resume strip (compact) ── */
+.resume-strip {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  background: var(--ff-rest-dim); border: 1px solid rgba(255,184,107,0.28);
+  border-left: 3px solid var(--ff-rest); border-radius: 10px;
+  padding: 9px 14px; margin-bottom: 14px; color: var(--ff-rest);
+  cursor: pointer; text-align: left; flex-wrap: nowrap;
 }
-.resume-banner-title { font-size: 0.82rem; font-weight: 700; color: #7dffc0; margin-bottom: 4px; }
-.resume-banner-sub   { font-size: 0.76rem; color: #aab2c5; margin-bottom: 10px; line-height: 1.4; }
-.resume-banner-btns  { display: flex; gap: 8px; }
-.resume-banner-btns button { flex: 1; padding: 8px; font-size: 0.82rem; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; }
-.resume-banner-btns button:first-child { background: #4caf50; color: #fff; }
-.resume-banner-btns button:last-child { background: #3f4a60; color: #aab2c5; }
+.resume-strip:hover { background: rgba(255,184,107,0.16); }
+.resume-strip-text {
+  flex: 1; font-size: 0.8rem; color: #dde1e9; font-weight: 400; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.resume-strip-text strong { color: #fff; font-weight: 600; }
+.resume-strip-link {
+  flex: none; display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.76rem; font-weight: 700; color: var(--ff-rest);
+}
 
 /* ── Timer display ── */
 .time { font-size: 3.15rem; font-weight: 700; letter-spacing: 1px;
@@ -396,6 +403,34 @@ button:disabled { opacity: 0.36; cursor: not-allowed; }
   background: transparent; border: 1px dashed #3f4a60; color: #8fb6ff;
 }
 
+/* ── Settings page ── */
+.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.settings-card { margin-bottom: 0; padding-bottom: 14px; }
+.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 10px; }
+.settings-row-label { font-size: 0.84rem; color: #f0f0f0; font-weight: 500; }
+.settings-row-hint { font-size: 0.74rem; color: var(--ff-muted); margin-top: 3px; line-height: 1.4; }
+.settings-radio-group { display: flex; gap: 6px; margin-bottom: 4px; }
+.settings-radio {
+  flex: 1; padding: 7px 4px; font-size: 0.78rem; border-radius: 8px;
+  background: var(--ff-panel-2); border: 1px solid var(--ff-line); color: var(--ff-muted);
+}
+.settings-radio.active { background: var(--ff-focus-dim); border-color: rgba(91,140,255,0.4); color: var(--ff-focus); }
+
+.toggle-switch {
+  flex: none; width: 40px; height: 23px; padding: 2px; border-radius: 20px;
+  background: #2a3344; border: 1px solid var(--ff-line); position: relative; cursor: pointer;
+}
+.toggle-switch.on { background: var(--ff-focus); border-color: var(--ff-focus); }
+.toggle-knob {
+  display: block; width: 17px; height: 17px; border-radius: 50%; background: #fff;
+  transform: translateX(0); transition: transform 0.18s ease;
+}
+.toggle-switch.on .toggle-knob { transform: translateX(17px); }
+
+@media (max-width: 780px) {
+  .settings-grid { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 980px) {
   .timer-grid { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
@@ -419,3 +454,91 @@ button:disabled { opacity: 0.36; cursor: not-allowed; }
   .time { font-size: 2.6rem; }
   .summary-grid { grid-template-columns: 1fr 1fr; }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   Light theme — overrides only, scoped under [data-theme="light"].
+   Dark stays the default; nothing above this line needs to change.
+   ══════════════════════════════════════════════════════════════ */
+[data-theme='light'] {
+  --ff-bg: #f5f6f8;
+  --ff-sidebar: #eef0f4;
+  --ff-panel: #ffffff;
+  --ff-panel-2: #eef0f4;
+  --ff-line: rgba(20,24,32,0.1);
+  --ff-text: #1a1d24;
+  --ff-muted: #6b7280;
+  --ff-focus-dim: rgba(59,110,230,0.1);
+  --ff-rest-dim: rgba(197,122,20,0.12);
+}
+[data-theme='light'] body { background: var(--ff-bg); color: var(--ff-text); }
+[data-theme='light'] h1,
+[data-theme='light'] h2 { color: #14161c; }
+[data-theme='light'] h3 { color: #55606e; }
+
+/* surfaces that used raw hex instead of tokens */
+[data-theme='light'] .seg-tabs,
+[data-theme='light'] input,
+[data-theme='light'] select,
+[data-theme='light'] textarea,
+[data-theme='light'] .cycle-preview,
+[data-theme='light'] .summary-card,
+[data-theme='light'] .pct-bar,
+[data-theme='light'] .session-item,
+[data-theme='light'] .tpl-item,
+[data-theme='light'] .config-section {
+  background: #eef0f4; border-color: var(--ff-line);
+}
+[data-theme='light'] input,
+[data-theme='light'] select,
+[data-theme='light'] textarea { color: #1a1d24; }
+[data-theme='light'] .seg-tab.active,
+[data-theme='light'] .modal,
+[data-theme='light'] .total-pill,
+[data-theme='light'] .session-badge {
+  background: #ffffff; box-shadow: 0 1px 4px rgba(20,24,32,0.08);
+}
+[data-theme='light'] .seg-tab.active,
+[data-theme='light'] .sub-tab,
+[data-theme='light'] .settings-radio { color: #3a4150; }
+[data-theme='light'] .modal { box-shadow: 0 12px 40px rgba(20,24,32,0.16); }
+[data-theme='light'] .sub-tab { border-color: var(--ff-line); }
+
+/* text colors that were hardcoded white/near-white */
+[data-theme='light'] .sidebar-brand-text,
+[data-theme='light'] .stat-value,
+[data-theme='light'] .seg-tab.active,
+[data-theme='light'] .time,
+[data-theme='light'] .resume-strip-text strong,
+[data-theme='light'] .review-question,
+[data-theme='light'] .summary-card .sc-val,
+[data-theme='light'] .session-date,
+[data-theme='light'] .recover-name,
+[data-theme='light'] .tpl-name,
+[data-theme='light'] .settings-row-label,
+[data-theme='light'] .clr-task,
+[data-theme='light'] .breakdown-table td {
+  color: #1a1d24;
+}
+[data-theme='light'] .breakdown-table th { border-color: var(--ff-line); }
+[data-theme='light'] .cycle-row,
+[data-theme='light'] .cycle-log-row { border-color: var(--ff-line); }
+
+/* sidebar + panels */
+[data-theme='light'] .sidebar { background: var(--ff-sidebar); border-color: var(--ff-line); }
+[data-theme='light'] .panel-card,
+[data-theme='light'] .stat-card,
+[data-theme='light'] .recover-item { background: var(--ff-panel); border-color: var(--ff-line); }
+
+/* buttons that assumed a dark backdrop for contrast */
+[data-theme='light'] .tpl-btn.tpl-load-btn { background: #d9f2e3; color: #1f7a45; }
+[data-theme='light'] .mode-badge.auto   { background: #d9f2e3; color: #1f7a45; }
+[data-theme='light'] .mode-badge.manual { background: #fbe6c8; color: #8a5a12; }
+[data-theme='light'] .pip-badge { color: #1a1d24; }
+[data-theme='light'] #popoutBtn,
+[data-theme='light'] .toggle-switch.on { background: var(--ff-focus); }
+
+/* the cover/landing page keeps its own always-dark look regardless of
+   in-app theme — it's a deliberate first-impression design, not tied to
+   the signed-in preference. */
+.cover-page { background: #07080b !important; color: #eceef2 !important; }
+

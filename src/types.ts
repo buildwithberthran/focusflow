@@ -73,6 +73,21 @@ export interface SnapshotRow {
   remaining_seconds: number | null;
 }
 
+export type StartupMode = 'ask' | 'autopilot' | 'manual';
+export type Theme = 'dark' | 'light';
+
+export interface UserSettings {
+  user_id: string;
+  startup_mode: StartupMode;
+  ask_feedback_after_cycle: boolean;
+  default_break_seconds_standard: number;
+  default_break_seconds_target: number;
+  default_alert_sound: AlertSound;
+  transition_seconds: number;
+  theme: Theme;
+  updated_at: string;
+}
+
 export interface DisplayState {
   time: string;
   cycle: string;

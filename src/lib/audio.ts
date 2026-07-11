@@ -31,10 +31,13 @@ export function playBeep() {
   }
 }
 
-export function playBeepCountdown() {
+export function playBeepCountdown(seconds = 3) {
   try {
     const ctx = getAudioCtx();
-    [660, 550, 440].forEach((f, i) => {
+    const startFreq = 660;
+    const endFreq = 330;
+    for (let i = 0; i < seconds; i++) {
+      const f = seconds > 1 ? startFreq - ((startFreq - endFreq) * i) / (seconds - 1) : startFreq;
       const o = ctx.createOscillator();
       const g = ctx.createGain();
       o.type = 'sine';
@@ -48,10 +51,16 @@ export function playBeepCountdown() {
       g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
       o.start(t);
       o.stop(t + 0.4);
-    });
+    }
   } catch {
     /* ignore */
   }
+}
+
+function countdownPhrases(seconds: number): string[] {
+  const out: string[] = [];
+  for (let i = seconds; i >= 1; i--) out.push(String(i));
+  return out;
 }
 
 function speakPhrase(text: string): Promise<void> {
@@ -84,16 +93,17 @@ export function cancelSpeech() {
 export function announceBreakStart(
   alertSound: 'beep' | 'voice',
   n: number,
-  sc: () => boolean
+  sc: () => boolean,
+  seconds = 3
 ): Promise<void> {
   if (alertSound === 'voice') {
-    return speakSequence([`Circle ${n} complete.`, 'Beginning break in', '3', '2', '1'], sc);
+    return speakSequence([`Circle ${n} complete.`, 'Beginning break in', ...countdownPhrases(seconds)], sc);
   }
   playBeep();
   return new Promise((res) => {
     setTimeout(() => {
-      if (sc()) playBeepCountdown();
-      setTimeout(res, 3200);
+      if (sc()) playBeepCountdown(seconds);
+      setTimeout(res, seconds * 1000 + 200);
     }, 600);
   });
 }
@@ -101,11 +111,12 @@ export function announceBreakStart(
 export function announceNextCycleStart(
   alertSound: 'beep' | 'voice',
   n: number,
-  sc: () => boolean
+  sc: () => boolean,
+  seconds = 3
 ): Promise<void> {
   if (alertSound === 'voice') {
-    return speakSequence([`Circle ${n} begins in`, '3', '2', '1'], sc);
+    return speakSequence([`Circle ${n} begins in`, ...countdownPhrases(seconds)], sc);
   }
-  playBeepCountdown();
-  return new Promise((res) => setTimeout(res, 3200));
+  playBeepCountdown(seconds);
+  return new Promise((res) => setTimeout(res, seconds * 1000 + 200));
 }

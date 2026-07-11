@@ -1,4 +1,4 @@
-import { Timer as TimerIcon, ListChecks, LayoutTemplate, LogOut, RotateCcw } from 'lucide-react';
+import { Timer as TimerIcon, ListChecks, LayoutTemplate, LogOut, RotateCcw, Settings as SettingsIcon } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTimerEngine } from '../../context/TimerEngineContext';
 import { useRecoverableCount } from '../../hooks/useRecoverableCount';
@@ -16,6 +16,7 @@ export default function Sidebar({ active, onChange }: { active: Page; onChange: 
     { id: 'history', label: 'History', icon: ListChecks },
     { id: 'templates', label: 'Templates', icon: LayoutTemplate },
     { id: 'recover', label: 'Recover', icon: RotateCcw, badge: recoverableCount },
+    { id: 'settings', label: 'Settings', icon: SettingsIcon },
   ];
 
   return (
