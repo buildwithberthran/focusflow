@@ -492,8 +492,12 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
     async (completedNum: number, capturedToken: number) => {
       const sv = () => runTokenRef.current === capturedToken;
       patch({ phase: 'announcing-break' });
-      syncDisplay(fmt(s.current.remainingSeconds), `Circle ${completedNum} complete`, '📣 Break starting in 3…');
-      await announceBreakStart(getAlertSound(), completedNum, sv, getTransitionSeconds());
+      const cycleLabel = `Circle ${completedNum} complete`;
+      const timeStr = fmt(s.current.remainingSeconds);
+      syncDisplay(timeStr, cycleLabel, '📣 Break starting…');
+      await announceBreakStart(getAlertSound(), completedNum, sv, getTransitionSeconds(), (remaining) =>
+        syncDisplay(timeStr, cycleLabel, `📣 Break starting in ${remaining}…`)
+      );
       if (!sv()) return;
 
       await saveSnapshot('next_cycle');
@@ -541,12 +545,12 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
 
       await saveSnapshot('this_cycle');
 
-      syncDisplay(
-        fmt(s.current.currentCycleMin * 60),
-        `Cycle ${nextNum} — ${s.current.currentCycleMin} min`,
-        '📣 Starting in 3…'
+      const nextTimeStr = fmt(s.current.currentCycleMin * 60);
+      const nextCycleLabel = `Cycle ${nextNum} — ${s.current.currentCycleMin} min`;
+      syncDisplay(nextTimeStr, nextCycleLabel, '📣 Starting…');
+      await announceNextCycleStart(getAlertSound(), nextNum, sv, getTransitionSeconds(), (remaining) =>
+        syncDisplay(nextTimeStr, nextCycleLabel, `📣 Starting in ${remaining}…`)
       );
-      await announceNextCycleStart(getAlertSound(), nextNum, sv, getTransitionSeconds());
       if (!sv()) return;
 
       if (s.current.autopilot) {
@@ -664,12 +668,12 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
     const cap = runTokenRef.current;
     const nextNum = cycleNumber();
     const sv = () => runTokenRef.current === cap && s.current.phase === 'announcing-next';
-    syncDisplay(
-      fmt(s.current.currentCycleMin * 60),
-      `Cycle ${nextNum} — ${s.current.currentCycleMin} min`,
-      '📣 Starting in 3…'
-    );
-    announceNextCycleStart(getAlertSound(), nextNum, sv, getTransitionSeconds()).then(() => {
+    const timeStr = fmt(s.current.currentCycleMin * 60);
+    const cycleLabel = `Cycle ${nextNum} — ${s.current.currentCycleMin} min`;
+    syncDisplay(timeStr, cycleLabel, '📣 Starting…');
+    announceNextCycleStart(getAlertSound(), nextNum, sv, getTransitionSeconds(), (remaining) =>
+      syncDisplay(timeStr, cycleLabel, `📣 Starting in ${remaining}…`)
+    ).then(() => {
       if (!sv()) return;
       const secs = s.current.currentCycleMin * 60;
       patch({ phase: 'countdown', remainingSeconds: secs });
@@ -751,8 +755,12 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
       patch({ phase: 'announcing-next' });
       const cap = runTokenRef.current;
       const sv = () => runTokenRef.current === cap && s.current.phase === 'announcing-next';
-      syncDisplay(fmt(secs), `Cycle 1 — ${s.current.currentCycleMin} min`, '📣 Starting in 3…');
-      announceNextCycleStart(getAlertSound(), 1, sv, getTransitionSeconds()).then(() => {
+      const startTimeStr = fmt(secs);
+      const startCycleLabel = `Cycle 1 — ${s.current.currentCycleMin} min`;
+      syncDisplay(startTimeStr, startCycleLabel, '📣 Starting…');
+      announceNextCycleStart(getAlertSound(), 1, sv, getTransitionSeconds(), (remaining) =>
+        syncDisplay(startTimeStr, startCycleLabel, `📣 Starting in ${remaining}…`)
+      ).then(() => {
         if (!sv()) return;
         patch({ phase: 'countdown' });
         syncDisplay(fmt(s.current.remainingSeconds), `Cycle: ${s.current.currentCycleMin} min`, '');
@@ -800,11 +808,12 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
   // ───────────────────────── resume from snapshot ─────────────────────────
   const checkForInterruptedSession = useCallback(async () => {
     if (!userId) return;
-    // A session is already live in this tab (running, paused, mid-transition,
-    // or just finished) — never surface the resume banner over it. This was
-    // the source of the "resume modal always appears" bug: this check used
-    // to run unconditionally on every visit to the Timer tab.
-    if (s.current.phase !== 'idle') return;
+    // A session is genuinely live in this tab (running, paused, mid-transition)
+    // — never surface the resume banner over it. 'finished' is safe to check
+    // through, though: nothing is at risk of being clobbered once a session
+    // has completed, and refusing to check here was why resuming a *different*
+    // interrupted session required first clicking Reset.
+    if (s.current.phase !== 'idle' && s.current.phase !== 'finished') return;
     try {
       const found = await dbFindInterruptedSession(s.current.currentSessionId);
       if (!found) {
@@ -921,9 +930,13 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
         snap.app_mode === 'target' ? scheduleIndex + 1 : (snap.start_min || 30) - currentCycleMin + 1;
       const sv = () => runTokenRef.current === cap && s.current.phase === 'announcing-next';
 
-      syncDisplay(fmt(secs), `Cycle ${cycleNum} — ${currentCycleMin} min (resuming)`, '📣 Resuming in 3…');
+      const resumeTimeStr = fmt(secs);
+      const resumeCycleLabel = `Cycle ${cycleNum} — ${currentCycleMin} min (resuming)`;
+      syncDisplay(resumeTimeStr, resumeCycleLabel, '📣 Resuming…');
 
-      announceNextCycleStart(getAlertSound(), cycleNum, sv, getTransitionSeconds()).then(() => {
+      announceNextCycleStart(getAlertSound(), cycleNum, sv, getTransitionSeconds(), (remaining) =>
+        syncDisplay(resumeTimeStr, resumeCycleLabel, `📣 Resuming in ${remaining}…`)
+      ).then(() => {
         if (!sv()) return;
         patch({ phase: 'countdown' });
         syncDisplay(fmt(s.current.remainingSeconds), `Cycle: ${currentCycleMin} min`, '');
@@ -1086,7 +1099,7 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
   // session's last snapshot — used by the "Restart" action on the Recover page.
   const configureFromSnapshot = useCallback(
     (snap: SnapshotRow, sessionName?: string | null) => {
-      if (s.current.phase !== 'idle') return;
+      if (s.current.phase !== 'idle' && s.current.phase !== 'finished') return;
       if (snap.app_mode === 'target') {
         const schedule = (snap.schedule || []).map((c) => ({ min: c.min, label: c.label || '' }));
         patch({
@@ -1258,20 +1271,38 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Apply the person's saved defaults (break lengths, alert sound) the first
-  // time settings load for this tab — but only while nothing has been
-  // configured yet, so it never clobbers an in-progress edit or a live session.
-  const settingsAppliedRef = useRef(false);
+  // Keep breakSeconds/tBreakSeconds/alertSound in sync with the person's saved
+  // defaults — on initial load AND every time they change them in Settings,
+  // not just once. Only while idle/finished, so it never touches a live or
+  // paused session. Tracked per-field so changing one setting (e.g. theme)
+  // doesn't stomp a break length you'd already manually tweaked for this
+  // not-yet-started session.
+  const lastAppliedSettingsRef = useRef<{
+    breakStd: number;
+    breakTgt: number;
+    alert: AlertSound;
+  } | null>(null);
   useEffect(() => {
-    if (!settings || settingsAppliedRef.current) return;
-    if (s.current.phase !== 'idle') return;
-    settingsAppliedRef.current = true;
-    patch({
-      breakSeconds: settings.default_break_seconds_standard,
-      tBreakSeconds: settings.default_break_seconds_target,
-      alertSound: settings.default_alert_sound,
-      tAlertSound: settings.default_alert_sound,
-    });
+    if (!settings) return;
+    if (s.current.phase !== 'idle' && s.current.phase !== 'finished') return;
+    const prev = lastAppliedSettingsRef.current;
+    const patchObj: Partial<EngineState> = {};
+    if (!prev || prev.breakStd !== settings.default_break_seconds_standard) {
+      patchObj.breakSeconds = settings.default_break_seconds_standard;
+    }
+    if (!prev || prev.breakTgt !== settings.default_break_seconds_target) {
+      patchObj.tBreakSeconds = settings.default_break_seconds_target;
+    }
+    if (!prev || prev.alert !== settings.default_alert_sound) {
+      patchObj.alertSound = settings.default_alert_sound;
+      patchObj.tAlertSound = settings.default_alert_sound;
+    }
+    lastAppliedSettingsRef.current = {
+      breakStd: settings.default_break_seconds_standard,
+      breakTgt: settings.default_break_seconds_target,
+      alert: settings.default_alert_sound,
+    };
+    if (Object.keys(patchObj).length) patch(patchObj);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings]);
 

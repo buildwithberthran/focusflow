@@ -31,7 +31,7 @@ export default function RecoverPage({ onNavigate }: { onNavigate: (p: Page) => v
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const liveElsewhere = state.phase !== 'idle';
+  const liveElsewhere = state.phase !== 'idle' && state.phase !== 'finished';
 
   async function runResume(row: RecoverableSession, choice: 'continue' | 'restart') {
     if (!row.snapshot) return;

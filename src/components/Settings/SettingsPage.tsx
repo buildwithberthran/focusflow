@@ -122,19 +122,22 @@ export default function SettingsPage() {
               </select>
             </div>
             <div>
-              <label>Transition countdown</label>
-              <select
+              <label>Transition countdown (sec)</label>
+              <input
+                type="number"
+                min={0}
+                step={1}
                 value={settings.transition_seconds}
-                onChange={(e) => update({ transition_seconds: parseInt(e.target.value, 10) })}
-              >
-                <option value={3}>3 seconds</option>
-                <option value={5}>5 seconds</option>
-                <option value={10}>10 seconds</option>
-              </select>
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10);
+                  update({ transition_seconds: Number.isInteger(v) && v >= 0 ? v : 0 });
+                }}
+              />
             </div>
           </div>
           <div className="settings-row-hint" style={{ marginBottom: 10 }}>
-            How long the "starting in…" countdown runs between cycles and breaks.
+            How long the "starting in…" countdown runs between cycles and breaks. Use 0 for an
+            instant transition with no countdown.
           </div>
         </div>
 

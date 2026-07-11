@@ -50,7 +50,9 @@ you'd touch to change it.
 | `src/context/SettingsContext.tsx` | Loads settings once signed in, applies the theme (`data-theme` attribute), exposes `update()`. |
 | `src/lib/db.ts` (`dbGetSettings`/`dbUpsertSettings`) | Settings are per-user in Supabase (`user_settings` table), not just local — they follow you across devices. |
 
-Settings feed into the engine in three places: `requestStart()` skips the Autopilot/Manual modal entirely when startup mode isn't "ask"; `openReviewModal()` skips the post-cycle question when feedback is off; and break/alert defaults are applied once, the first time settings load, without touching a session already in progress or a config you've already started editing.
+Settings feed into the engine in three places: `requestStart()` skips the Autopilot/Manual modal entirely when startup mode isn't "ask"; `openReviewModal()` skips the post-cycle question when feedback is off; and break/alert defaults re-apply every time they change in Settings (not just once), tracked per-field so an unrelated settings change doesn't stomp a break length you'd already tweaked for a not-yet-started session — but never while idle isn't the phase, so a live or paused session is untouched.
+
+`src/lib/audio.ts`'s transition countdown (`announceBreakStart`/`announceNextCycleStart`) now takes an `onTick(remaining)` callback, called right as each number is cued — voice just before speaking it, beep just before the tone — so the on-screen "Starting in N…" text is driven by the same clock as the audio instead of being a static string. `transition_seconds` accepts any value from 0 up (0 = instant, no countdown, no dangling "beginning in…" voice line).
 
 ## Theme
 

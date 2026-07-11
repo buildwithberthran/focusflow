@@ -31,36 +31,58 @@ export function playBeep() {
   }
 }
 
-export function playBeepCountdown(seconds = 3) {
+function sleep(ms: number): Promise<void> {
+  return new Promise((res) => setTimeout(res, ms));
+}
+
+function playSingleCountdownTone(index: number, total: number) {
   try {
     const ctx = getAudioCtx();
     const startFreq = 660;
     const endFreq = 330;
-    for (let i = 0; i < seconds; i++) {
-      const f = seconds > 1 ? startFreq - ((startFreq - endFreq) * i) / (seconds - 1) : startFreq;
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = 'sine';
-      o.frequency.value = f;
-      g.gain.value = 0.0001;
-      o.connect(g);
-      g.connect(ctx.destination);
-      const t = ctx.currentTime + i * 1.0;
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
-      o.start(t);
-      o.stop(t + 0.4);
-    }
+    const f = total > 1 ? startFreq - ((startFreq - endFreq) * index) / (total - 1) : startFreq;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.value = f;
+    g.gain.value = 0.0001;
+    o.connect(g);
+    g.connect(ctx.destination);
+    const t = ctx.currentTime;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+    o.start(t);
+    o.stop(t + 0.4);
   } catch {
     /* ignore */
   }
 }
 
-function countdownPhrases(seconds: number): string[] {
-  const out: string[] = [];
-  for (let i = seconds; i >= 1; i--) out.push(String(i));
-  return out;
+type OnTick = (remaining: number) => void;
+
+// Runs the "N, N-1, ... 1" countdown, calling onTick right as each number is
+// cued (voice: just before speaking it; beep: just before the tone) so a
+// caller can drive a UI countdown that's actually in lockstep with the audio,
+// instead of guessing at timing separately. seconds <= 0 skips it entirely
+// (an instant, no-countdown transition).
+async function runCountdownTicks(
+  alertSound: 'beep' | 'voice',
+  seconds: number,
+  onTick: OnTick,
+  sc: () => boolean
+): Promise<void> {
+  if (seconds <= 0) return;
+  for (let n = seconds; n >= 1; n--) {
+    if (!sc()) return;
+    onTick(n);
+    if (alertSound === 'voice') {
+      await speakPhrase(String(n));
+    } else {
+      playSingleCountdownTone(seconds - n, seconds);
+      await sleep(1000);
+    }
+  }
 }
 
 function speakPhrase(text: string): Promise<void> {
@@ -90,33 +112,34 @@ export function cancelSpeech() {
   if ('speechSynthesis' in window) window.speechSynthesis.cancel();
 }
 
-export function announceBreakStart(
+export async function announceBreakStart(
   alertSound: 'beep' | 'voice',
   n: number,
   sc: () => boolean,
-  seconds = 3
+  seconds = 3,
+  onTick: OnTick = () => {}
 ): Promise<void> {
+  if (!sc()) return;
   if (alertSound === 'voice') {
-    return speakSequence([`Circle ${n} complete.`, 'Beginning break in', ...countdownPhrases(seconds)], sc);
+    const phrases = seconds > 0 ? [`Circle ${n} complete.`, 'Beginning break in'] : [`Circle ${n} complete.`];
+    await speakSequence(phrases, sc);
+  } else {
+    playBeep();
+    await sleep(600);
   }
-  playBeep();
-  return new Promise((res) => {
-    setTimeout(() => {
-      if (sc()) playBeepCountdown(seconds);
-      setTimeout(res, seconds * 1000 + 200);
-    }, 600);
-  });
+  await runCountdownTicks(alertSound, seconds, onTick, sc);
 }
 
-export function announceNextCycleStart(
+export async function announceNextCycleStart(
   alertSound: 'beep' | 'voice',
   n: number,
   sc: () => boolean,
-  seconds = 3
+  seconds = 3,
+  onTick: OnTick = () => {}
 ): Promise<void> {
-  if (alertSound === 'voice') {
-    return speakSequence([`Circle ${n} begins in`, ...countdownPhrases(seconds)], sc);
+  if (!sc()) return;
+  if (alertSound === 'voice' && seconds > 0) {
+    await speakSequence([`Circle ${n} begins in`], sc);
   }
-  playBeepCountdown(seconds);
-  return new Promise((res) => setTimeout(res, seconds * 1000 + 200));
+  await runCountdownTicks(alertSound, seconds, onTick, sc);
 }
