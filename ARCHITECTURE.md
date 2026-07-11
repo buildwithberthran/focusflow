@@ -41,6 +41,21 @@ you'd touch to change it.
 | `src/components/History/HistoryPage.tsx` | Summary cards, per-task breakdown, sessions grouped by date, inline session rename, per-cycle paused-time annotation, CSV export. |
 | `src/components/Templates/TemplatesPage.tsx` | The saved-template list (Use / Delete). |
 
+## Settings
+
+| File | What it controls |
+|---|---|
+| `src/components/Settings/SettingsPage.tsx` | Startup mode (always ask / autopilot / manual), post-cycle feedback toggle, default break lengths per mode, default alert sound, transition countdown length, theme. |
+| `src/components/Settings/Toggle.tsx` | The reusable on/off switch. |
+| `src/context/SettingsContext.tsx` | Loads settings once signed in, applies the theme (`data-theme` attribute), exposes `update()`. |
+| `src/lib/db.ts` (`dbGetSettings`/`dbUpsertSettings`) | Settings are per-user in Supabase (`user_settings` table), not just local — they follow you across devices. |
+
+Settings feed into the engine in three places: `requestStart()` skips the Autopilot/Manual modal entirely when startup mode isn't "ask"; `openReviewModal()` skips the post-cycle question when feedback is off; and break/alert defaults are applied once, the first time settings load, without touching a session already in progress or a config you've already started editing.
+
+## Theme
+
+Dark is the default and everything above was designed against it first. The light theme lives entirely in a `[data-theme="light"]` override block at the bottom of `src/index.css` — it doesn't touch any dark-mode rule. The cover/landing page is deliberately exempt and always renders dark regardless of the in-app theme setting (it's a fixed first impression, not a signed-in preference).
+
 ## Resuming precisely
 
 | File | What it controls |

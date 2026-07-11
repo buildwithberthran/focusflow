@@ -5,6 +5,7 @@ import { dbAbandonSession, dbListRecoverableSessions, type RecoverableSession } 
 import { describeResumeChoice } from '../../lib/resumeChoice';
 import type { Page } from '../Layout/AppShell';
 import ResumeChoiceModal from '../Modals/ResumeChoiceModal';
+import DeleteSessionModal from '../Modals/DeleteSessionModal';
 
 export default function RecoverPage({ onNavigate }: { onNavigate: (p: Page) => void }) {
   const { state, actions } = useTimerEngine();
@@ -12,6 +13,7 @@ export default function RecoverPage({ onNavigate }: { onNavigate: (p: Page) => v
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [choiceRow, setChoiceRow] = useState<RecoverableSession | null>(null);
+  const [deleteRow, setDeleteRow] = useState<RecoverableSession | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -73,14 +75,15 @@ export default function RecoverPage({ onNavigate }: { onNavigate: (p: Page) => v
     }
   }
 
-  async function handleEnd(row: RecoverableSession) {
-    if (!confirm('End this session permanently? This cannot be undone.')) return;
-    setBusyId(row.session.id);
+  async function confirmEnd() {
+    if (!deleteRow) return;
+    setBusyId(deleteRow.session.id);
     try {
-      await dbAbandonSession(row.session.id);
+      await dbAbandonSession(deleteRow.session.id);
       await load();
     } finally {
       setBusyId(null);
+      setDeleteRow(null);
     }
   }
 
@@ -142,7 +145,7 @@ export default function RecoverPage({ onNavigate }: { onNavigate: (p: Page) => v
                 >
                   <RotateCw size={14} strokeWidth={2.4} /> Restart
                 </button>
-                <button className="recover-btn end" disabled={busy} onClick={() => handleEnd(row)}>
+                <button className="recover-btn end" disabled={busy} onClick={() => setDeleteRow(row)}>
                   <XCircle size={14} strokeWidth={2.4} /> End
                 </button>
               </div>
@@ -155,6 +158,7 @@ export default function RecoverPage({ onNavigate }: { onNavigate: (p: Page) => v
         onCancel={() => setChoiceRow(null)}
         onChoose={(choice) => choiceRow && runResume(choiceRow, choice)}
       />
+      <DeleteSessionModal row={deleteRow} onCancel={() => setDeleteRow(null)} onConfirm={confirmEnd} />
     </div>
   );
 }
