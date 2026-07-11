@@ -58,6 +58,17 @@ Settings feed into the engine in three places: `requestStart()` skips the Autopi
 
 Dark is the default and everything above was designed against it first. The light theme lives entirely in a `[data-theme="light"]` override block at the bottom of `src/index.css` — it doesn't touch any dark-mode rule. The cover/landing page is deliberately exempt and always renders dark regardless of the in-app theme setting (it's a fixed first impression, not a signed-in preference).
 
+## This round's fixes and additions
+
+- **Finish-then-Reset corruption, fixed**: `finishAll()` never cleared `currentCycleLogId`, so clicking Reset right after a session finished re-ran the abandon logic against the *already-completed* last cycle, overwriting its `completed`/notes with `[abandoned]`. `stopAndReset()` now only touches the DB at all when something is genuinely active (`phase` isn't `idle` or `finished`).
+- **Settings that weren't taking effect**: break-length/alert-sound defaults now re-apply every time they change in Settings (tracked per-field), not just once on first load.
+- **The countdown text was static**: `src/lib/audio.ts`'s `announceBreakStart`/`announceNextCycleStart` now take an `onTick(remaining)` callback fired in lockstep with each beep/voice number, so the on-screen "Starting in N…" is driven by the same clock as the audio.
+- **Transitions can skip breaks**: `transition_before_break` setting — cycles always get the transition countdown, breaks are optional.
+- **Cycle-ending-soon alert**: `end_alert_enabled` + `end_alert_seconds`, a single distinct cue (not the countdown tones) fired once when remaining time crosses the threshold.
+- **Retroactive review editing**: every cycle card in History has an edit affordance to set Yes/No/Unsure and rewrite notes after the fact — a skipped review is no longer a permanent, unchangeable "not done."
+- **Long-pause reason prompt** (`src/components/Modals/PauseReasonModal.tsx`, `src/lib/resumeChoice.ts`-adjacent logic in `useFocusTimer.ts`): master-toggle setting (`long_pause_check_enabled`) plus separate thresholds for mid-cycle pauses (flat minutes) and mid-break pauses (percent-over or flat-minutes-over, user's choice). Resuming past the threshold defers the actual resume until the person answers or skips; a cycle-pause reason attaches directly to that cycle's log, a break-pause reason is stashed (`pendingBreakPauseReason`) and attached to the *next* cycle's log once it's created, since breaks don't have their own DB row.
+- **History redesign**: each cycle is now an independent card (`CycleLogCard` in `HistoryPage.tsx`) — duration as a styled "N MIN" pill, task label, a start–end time line pulled straight from `started_at`/`ended_at`, pause/reason lines only when relevant, and a status pill + edit control at the bottom. Session headers show both start and end time.
+
 ## Resuming precisely
 
 | File | What it controls |
