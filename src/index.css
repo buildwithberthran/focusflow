@@ -285,6 +285,10 @@ button:disabled { opacity: 0.36; cursor: not-allowed; }
 }
 #popoutBtn { flex: none; width: 100%; margin-top: 10px; }
 .error { color: #ff6b6b; font-size: 0.8rem; text-align: center; margin-top: 8px; min-height: 1.1em; width: 100%; }
+.extend-btn { background: var(--ff-focus-dim); color: var(--ff-focus); }
+.restart-cycle-btn { background: rgba(255,184,107,0.12); color: var(--ff-rest); }
+.extend-quick-row { display: flex; gap: 8px; margin-bottom: 14px; }
+.extend-quick-btn { flex: 1; background: var(--ff-focus-dim); color: var(--ff-focus); padding: 10px; font-weight: 700; }
 .pip-badge { font-size: 0.62rem; background: #ffd166; color: #1e2530; border-radius: 4px;
   padding: 1px 4px; vertical-align: middle; margin-left: 3px; font-weight: 700; }
 
@@ -353,7 +357,17 @@ button:disabled { opacity: 0.36; cursor: not-allowed; }
 .cycle-card-num {
   font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; font-weight: 600;
   color: var(--ff-muted); text-transform: uppercase; letter-spacing: 0.5px;
+  display: inline-flex; align-items: center; gap: 8px;
 }
+.restart-badge {
+  font-family: 'Inter', sans-serif; text-transform: none; letter-spacing: 0;
+  font-size: 0.66rem; font-weight: 700; color: var(--ff-rest);
+  background: rgba(255,184,107,0.14); border-radius: 20px; padding: 2px 8px;
+}
+.cycle-extension-chain {
+  font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: #8fb6ff;
+}
+.cycle-extension-chain strong { color: var(--ff-focus); }
 .cycle-duration-pill {
   font-family: 'Sora', sans-serif; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.4px;
   color: var(--ff-focus); background: var(--ff-focus-dim); border-radius: 20px; padding: 3px 10px;

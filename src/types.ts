@@ -43,6 +43,8 @@ export interface CycleLogRow {
   paused_seconds: number;
   pause_reason: string | null;
   break_pause_reason: string | null;
+  extension_log: number[];
+  restart_count: number;
   started_at: string;
   ended_at: string | null;
 }

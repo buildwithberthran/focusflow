@@ -56,7 +56,10 @@ export default function HistoryPage() {
           'Autopilot',
           'Status',
           'Cycle #',
-          'Duration (min)',
+          'Planned Duration (min)',
+          'Extensions (min)',
+          'Total Duration (min)',
+          'Restart Count',
           'Task Label',
           'Completed',
           'Notes',
@@ -68,6 +71,8 @@ export default function HistoryPage() {
       ];
       logsAll.forEach((l) => {
         const sess = bySession[l.session_id];
+        const extensions = l.extension_log || [];
+        const totalMin = l.duration_min + extensions.reduce((a, b) => a + b, 0);
         rows.push([
           l.session_id,
           sess?.started_at || '',
@@ -76,6 +81,9 @@ export default function HistoryPage() {
           sess?.status || '',
           l.cycle_number,
           l.duration_min,
+          extensions.join('+') || '',
+          totalMin,
+          l.restart_count || 0,
           l.task_label || '',
           l.completed === true ? 'Yes' : l.completed === false ? 'No' : '',
           l.log_note || '',
@@ -379,6 +387,9 @@ function CycleLogCard({ log: l, onRefresh }: { log: CycleLogRow; onRefresh: () =
   const startTime = timeStr(l.started_at);
   const endTime = timeStr(l.ended_at);
   const statusTone = l.completed === true ? 'yes' : l.completed === false ? 'no' : 'unknown';
+  const extensions = l.extension_log || [];
+  const totalMin = l.duration_min + extensions.reduce((a, b) => a + b, 0);
+  const hasExtensions = extensions.length > 0;
 
   async function saveReview() {
     setSaving(true);
@@ -399,13 +410,22 @@ function CycleLogCard({ log: l, onRefresh }: { log: CycleLogRow; onRefresh: () =
   return (
     <div className="cycle-card">
       <div className="cycle-card-top">
-        <span className="cycle-card-num">Cycle {l.cycle_number}</span>
+        <span className="cycle-card-num">
+          Cycle {l.cycle_number}
+          {l.restart_count > 0 && <span className="restart-badge">Restarted {l.restart_count}×</span>}
+        </span>
         <span className="cycle-duration-pill">
-          <strong>{l.duration_min}</strong> MIN
+          <strong>{totalMin}</strong> MIN
         </span>
       </div>
 
       <div className="cycle-card-task">{l.task_label || <span className="cycle-card-task-empty">No task label</span>}</div>
+
+      {hasExtensions && (
+        <div className="cycle-card-row cycle-extension-chain">
+          {l.duration_min}m{extensions.map((e) => ` → +${e}m`).join('')} = <strong>{totalMin}m</strong> total
+        </div>
+      )}
 
       {startTime && (
         <div className="cycle-card-row">
