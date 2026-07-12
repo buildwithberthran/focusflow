@@ -168,7 +168,7 @@ export default function SettingsPage() {
           <div className="settings-row">
             <div>
               <div className="settings-row-label">Alert me before a cycle ends</div>
-              <div className="settings-row-hint">A one-time heads-up cue in the last stretch of a cycle.</div>
+              <div className="settings-row-hint">Counts down out loud in the last stretch of a cycle.</div>
             </div>
             <Toggle
               checked={settings.end_alert_enabled}
@@ -177,18 +177,34 @@ export default function SettingsPage() {
             />
           </div>
           {settings.end_alert_enabled && (
-            <div className="inputs" style={{ marginTop: 10 }}>
-              <div>
-                <label>Alert with (sec) left</label>
-                <input
-                  type="number"
-                  min={1}
-                  step={1}
-                  value={settings.end_alert_seconds}
-                  onChange={(e) => update({ end_alert_seconds: parseInt(e.target.value, 10) || 1 })}
+            <>
+              <div className="inputs" style={{ marginTop: 10 }}>
+                <div>
+                  <label>Alert with (sec) left</label>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={settings.end_alert_seconds}
+                    onChange={(e) => update({ end_alert_seconds: parseInt(e.target.value, 10) || 1 })}
+                  />
+                </div>
+              </div>
+              <div className="settings-row" style={{ marginTop: 10 }}>
+                <div>
+                  <div className="settings-row-label">Announce by task label</div>
+                  <div className="settings-row-hint">
+                    Say the task's label instead of "Cycle N" — useful in Target mode where each
+                    cycle can have its own label. Falls back to "Cycle N" if a cycle has no label.
+                  </div>
+                </div>
+                <Toggle
+                  checked={settings.end_alert_use_task_label}
+                  onChange={(v) => update({ end_alert_use_task_label: v })}
+                  label="Announce by task label"
                 />
               </div>
-            </div>
+            </>
           )}
         </div>
 

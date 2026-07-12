@@ -35,34 +35,41 @@ function sleep(ms: number): Promise<void> {
   return new Promise((res) => setTimeout(res, ms));
 }
 
-// A single, distinctive "heads up, this cycle is ending soon" cue — deliberately
-// different from the countdown tones so it doesn't get confused with a
-// cycle-to-cycle transition.
-export function announceEndingSoon(alertSound: 'beep' | 'voice', secondsLeft: number) {
-  if (alertSound === 'voice') {
-    void speakPhrase(`${secondsLeft} seconds left`);
-    return;
-  }
+function playEndingSoonTone() {
   try {
     const ctx = getAudioCtx();
-    [0, 0.18].forEach((d) => {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = 'triangle';
-      o.frequency.value = 990;
-      g.gain.value = 0.0001;
-      o.connect(g);
-      g.connect(ctx.destination);
-      const t = ctx.currentTime + d;
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(0.22, t + 0.015);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
-      o.start(t);
-      o.stop(t + 0.2);
-    });
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'triangle';
+    o.frequency.value = 990;
+    g.gain.value = 0.0001;
+    o.connect(g);
+    g.connect(ctx.destination);
+    const t = ctx.currentTime;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.22, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    o.start(t);
+    o.stop(t + 0.2);
   } catch {
     /* ignore */
   }
+}
+
+// Fired once per second while a cycle is in its final "ending soon" window —
+// deliberately NOT awaited by the caller. Each cue is a single short word or
+// tone that finishes well within a second, so it stays locked to the real
+// per-second countdown instead of drifting behind it. (The old version spoke
+// one full sentence — "5 seconds left" — a single time; by the time speech
+// synthesis finished saying it, several real seconds had already ticked by,
+// which is exactly the "sounds late" bug this replaces.)
+export function cueEndingSoon(alertSound: 'beep' | 'voice', remaining: number, isFirst: boolean, label: string) {
+  if (alertSound === 'voice') {
+    const phrase = isFirst ? `${label} ending in ${remaining}` : String(remaining);
+    void speakPhrase(phrase);
+    return;
+  }
+  playEndingSoonTone();
 }
 
 function playSingleCountdownTone(index: number, total: number) {

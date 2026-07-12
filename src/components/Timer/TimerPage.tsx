@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Play, Pause, Square, SkipForward, ExternalLink, Target, LayoutList, Clock, Tag, Bell, LayoutTemplate, Sparkles, ListPlus } from 'lucide-react';
+import { Play, Pause, Square, SkipForward, ExternalLink, Target, LayoutList, Clock, Tag, Bell, LayoutTemplate, Sparkles, ListPlus, ArrowDown, ArrowUp, Timer as TimerPlusIcon, RotateCw } from 'lucide-react';
 import { useTimerEngine } from '../../context/TimerEngineContext';
 import { useTemplates } from '../../hooks/useTemplates';
 import StatsBar from '../Layout/StatsBar';
@@ -10,6 +10,8 @@ import ModeModal from '../Modals/ModeModal';
 import ReviewModal from '../Modals/ReviewModal';
 import TemplateNameModal from '../Modals/TemplateNameModal';
 import PauseReasonModal from '../Modals/PauseReasonModal';
+import ExtendCycleModal from '../Modals/ExtendCycleModal';
+import RestartCycleModal from '../Modals/RestartCycleModal';
 
 import type { Page } from '../Layout/AppShell';
 
@@ -17,6 +19,8 @@ export default function TimerPage({ onNavigate }: { onNavigate: (p: Page) => voi
   const { state, actions, derived } = useTimerEngine();
   const { templates, refresh } = useTemplates();
   const [selectedTplId, setSelectedTplId] = useState('');
+  const [extendOpen, setExtendOpen] = useState(false);
+  const [restartOpen, setRestartOpen] = useState(false);
 
   useEffect(() => {
     actions.checkForInterruptedSession();
@@ -96,6 +100,17 @@ export default function TimerPage({ onNavigate }: { onNavigate: (p: Page) => voi
             </button>
           )}
 
+          {derived.canExtendOrRestart && (
+            <div className="buttons-row secondary">
+              <button className="extend-btn" onClick={() => setExtendOpen(true)}>
+                <TimerPlusIcon size={14} strokeWidth={2.2} /> Extend
+              </button>
+              <button className="restart-cycle-btn" onClick={() => setRestartOpen(true)}>
+                <RotateCw size={14} strokeWidth={2.2} /> Restart cycle
+              </button>
+            </div>
+          )}
+
           <button id="popoutBtn" onClick={() => actions.openPopout()}>
             <ExternalLink size={15} strokeWidth={2.2} /> Pop out
             {derived.hasPiP ? <span className="pip-badge">PiP</span> : null}
@@ -143,6 +158,24 @@ export default function TimerPage({ onNavigate }: { onNavigate: (p: Page) => voi
                 <div className="config-section-header">
                   <Clock size={14} strokeWidth={2.2} /> Timing
                 </div>
+
+                <div className="direction-toggle">
+                  <button
+                    className={'direction-btn' + (state.direction === 'decreasing' ? ' active' : '')}
+                    disabled={disabled}
+                    onClick={() => actions.patch({ direction: 'decreasing' })}
+                  >
+                    <ArrowDown size={13} strokeWidth={2.4} /> Decreasing
+                  </button>
+                  <button
+                    className={'direction-btn' + (state.direction === 'increasing' ? ' active' : '')}
+                    disabled={disabled}
+                    onClick={() => actions.patch({ direction: 'increasing' })}
+                  >
+                    <ArrowUp size={13} strokeWidth={2.4} /> Increasing
+                  </button>
+                </div>
+
                 <div className="inputs">
                   <div>
                     <label>Start time (min)</label>
@@ -156,7 +189,7 @@ export default function TimerPage({ onNavigate }: { onNavigate: (p: Page) => voi
                     />
                   </div>
                   <div>
-                    <label>End time (min)</label>
+                    <label>{state.direction === 'increasing' ? 'End time (min, higher)' : 'End time (min, lower)'}</label>
                     <input
                       type="number"
                       min={1}
@@ -164,6 +197,17 @@ export default function TimerPage({ onNavigate }: { onNavigate: (p: Page) => voi
                       value={state.endMin}
                       disabled={disabled}
                       onChange={(e) => actions.patch({ endMin: parseInt(e.target.value, 10) || 0 })}
+                    />
+                  </div>
+                  <div>
+                    <label>Step (min)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={state.stepMin}
+                      disabled={disabled}
+                      onChange={(e) => actions.patch({ stepMin: parseInt(e.target.value, 10) || 1 })}
                     />
                   </div>
                   <div>
@@ -393,6 +437,8 @@ export default function TimerPage({ onNavigate }: { onNavigate: (p: Page) => voi
       <ModeModal />
       <ReviewModal />
       <PauseReasonModal />
+      <ExtendCycleModal open={extendOpen} onClose={() => setExtendOpen(false)} />
+      <RestartCycleModal open={restartOpen} onClose={() => setRestartOpen(false)} />
       <TemplateNameModal onSaved={refresh} />
     </div>
   );

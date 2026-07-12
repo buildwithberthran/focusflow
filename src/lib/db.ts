@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS: Omit<UserSettings, 'user_id' | 'updated_at'> = {
   transition_before_break: true,
   end_alert_enabled: false,
   end_alert_seconds: 10,
+  end_alert_use_task_label: false,
   long_pause_check_enabled: false,
   long_pause_cycle_minutes: 15,
   long_pause_break_mode: 'percent',
@@ -116,10 +117,52 @@ export async function dbEndCycle(
 // for retroactively correcting completed/log_note from the History page.
 export async function dbUpdateCycleLog(
   cycleLogId: string,
-  updates: Partial<Pick<CycleLogRow, 'completed' | 'log_note' | 'pause_reason' | 'break_pause_reason'>>
+  updates: Partial<
+    Pick<
+      CycleLogRow,
+      'completed' | 'log_note' | 'pause_reason' | 'break_pause_reason' | 'extension_log' | 'restart_count'
+    >
+  >
 ) {
   const { error } = await supabase.from('cycle_logs').update(updates).eq('id', cycleLogId);
   if (error) throw error;
+}
+
+// Appends one extension amount to the cycle's running list — reads the
+// current list first so concurrent tabs/extensions don't clobber each other.
+export async function dbAppendCycleExtension(cycleLogId: string, minutes: number): Promise<number[]> {
+  const { data, error } = await supabase
+    .from('cycle_logs')
+    .select('extension_log')
+    .eq('id', cycleLogId)
+    .single();
+  if (error) throw error;
+  const next = [...((data?.extension_log as number[]) || []), minutes];
+  const { error: updateError } = await supabase
+    .from('cycle_logs')
+    .update({ extension_log: next })
+    .eq('id', cycleLogId);
+  if (updateError) throw updateError;
+  return next;
+}
+
+// Resets progress for a restart: clears extensions (a restart is a fresh
+// attempt, previous overruns don't carry over) and bumps restart_count so the
+// do-over itself stays visible.
+export async function dbRegisterCycleRestart(cycleLogId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from('cycle_logs')
+    .select('restart_count')
+    .eq('id', cycleLogId)
+    .single();
+  if (error) throw error;
+  const next = ((data?.restart_count as number) || 0) + 1;
+  const { error: updateError } = await supabase
+    .from('cycle_logs')
+    .update({ restart_count: next, extension_log: [], started_at: new Date().toISOString() })
+    .eq('id', cycleLogId);
+  if (updateError) throw updateError;
+  return next;
 }
 
 export async function dbRenameSession(sessionId: string, name: string) {
