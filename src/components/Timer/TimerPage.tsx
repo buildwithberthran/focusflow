@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Play, Pause, Square, SkipForward, ExternalLink, Target, LayoutList, Clock, Tag, Bell, LayoutTemplate, Sparkles, ListPlus } from 'lucide-react';
+import { Play, Pause, Square, SkipForward, ExternalLink, Target, LayoutList, Clock, Tag, Bell, LayoutTemplate, Sparkles, ListPlus, ArrowDown, ArrowUp } from 'lucide-react';
 import { useTimerEngine } from '../../context/TimerEngineContext';
 import { useTemplates } from '../../hooks/useTemplates';
 import StatsBar from '../Layout/StatsBar';
@@ -143,6 +143,24 @@ export default function TimerPage({ onNavigate }: { onNavigate: (p: Page) => voi
                 <div className="config-section-header">
                   <Clock size={14} strokeWidth={2.2} /> Timing
                 </div>
+
+                <div className="direction-toggle">
+                  <button
+                    className={'direction-btn' + (state.direction === 'decreasing' ? ' active' : '')}
+                    disabled={disabled}
+                    onClick={() => actions.patch({ direction: 'decreasing' })}
+                  >
+                    <ArrowDown size={13} strokeWidth={2.4} /> Decreasing
+                  </button>
+                  <button
+                    className={'direction-btn' + (state.direction === 'increasing' ? ' active' : '')}
+                    disabled={disabled}
+                    onClick={() => actions.patch({ direction: 'increasing' })}
+                  >
+                    <ArrowUp size={13} strokeWidth={2.4} /> Increasing
+                  </button>
+                </div>
+
                 <div className="inputs">
                   <div>
                     <label>Start time (min)</label>
@@ -156,7 +174,7 @@ export default function TimerPage({ onNavigate }: { onNavigate: (p: Page) => voi
                     />
                   </div>
                   <div>
-                    <label>End time (min)</label>
+                    <label>{state.direction === 'increasing' ? 'End time (min, higher)' : 'End time (min, lower)'}</label>
                     <input
                       type="number"
                       min={1}
@@ -164,6 +182,17 @@ export default function TimerPage({ onNavigate }: { onNavigate: (p: Page) => voi
                       value={state.endMin}
                       disabled={disabled}
                       onChange={(e) => actions.patch({ endMin: parseInt(e.target.value, 10) || 0 })}
+                    />
+                  </div>
+                  <div>
+                    <label>Step (min)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={state.stepMin}
+                      disabled={disabled}
+                      onChange={(e) => actions.patch({ stepMin: parseInt(e.target.value, 10) || 1 })}
                     />
                   </div>
                   <div>

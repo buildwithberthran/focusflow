@@ -127,6 +127,14 @@ h3 { font-size: 0.82rem; margin: 0 0 8px; color: #aab2c5; font-weight: 700;
 }
 .seg-tab.active { background: #2a3344; color: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
 
+/* ── Direction toggle (Standard mode) ── */
+.direction-toggle { display: flex; gap: 8px; margin-bottom: 12px; }
+.direction-btn {
+  flex: 1; padding: 7px 6px; font-size: 0.78rem; border-radius: 8px;
+  background: var(--ff-panel-2); border: 1px solid var(--ff-line); color: var(--ff-muted);
+}
+.direction-btn.active { background: var(--ff-focus-dim); border-color: rgba(91,140,255,0.4); color: var(--ff-focus); }
+
 /* ── Config sections (Standard/Target panel groups) ── */
 .config-section {
   background: var(--ff-bg); border: 1px solid var(--ff-line); border-radius: 12px;

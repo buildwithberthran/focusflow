@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS: Omit<UserSettings, 'user_id' | 'updated_at'> = {
   transition_before_break: true,
   end_alert_enabled: false,
   end_alert_seconds: 10,
+  end_alert_use_task_label: false,
   long_pause_check_enabled: false,
   long_pause_cycle_minutes: 15,
   long_pause_break_mode: 'percent',

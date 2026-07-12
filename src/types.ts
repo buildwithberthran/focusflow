@@ -73,6 +73,8 @@ export interface SnapshotRow {
   completed_cycles: number;
   resume_point: ResumePoint;
   remaining_seconds: number | null;
+  standard_direction: 'decreasing' | 'increasing';
+  standard_step_min: number;
 }
 
 export type StartupMode = 'ask' | 'autopilot' | 'manual';
@@ -89,6 +91,7 @@ export interface UserSettings {
   transition_before_break: boolean;
   end_alert_enabled: boolean;
   end_alert_seconds: number;
+  end_alert_use_task_label: boolean;
   long_pause_check_enabled: boolean;
   long_pause_cycle_minutes: number;
   long_pause_break_mode: 'percent' | 'minutes';

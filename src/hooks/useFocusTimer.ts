@@ -13,9 +13,9 @@ import type {
 } from '../types';
 import {
   announceBreakStart,
-  announceEndingSoon,
   announceNextCycleStart,
   cancelSpeech,
+  cueEndingSoon,
   playBeep,
   speakSequence,
 } from '../lib/audio';
@@ -41,6 +41,8 @@ export interface EngineState {
 
   startMin: number;
   endMin: number;
+  stepMin: number;
+  direction: 'decreasing' | 'increasing';
   breakSeconds: number;
   alertSound: AlertSound;
   stdTaskLabel: string;
@@ -99,6 +101,8 @@ function initialState(): EngineState {
 
     startMin: 30,
     endMin: 10,
+    stepMin: 1,
+    direction: 'decreasing',
     breakSeconds: 10,
     alertSound: 'beep',
     stdTaskLabel: '',
@@ -383,6 +387,8 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
         completed_cycles: s.current.completedCyclesCount,
         resume_point: resumePoint,
         remaining_seconds: resumePoint === 'this_cycle' ? s.current.remainingSeconds : null,
+        standard_direction: s.current.direction,
+        standard_step_min: s.current.stepMin,
       });
     },
     [userId, getBreakSeconds, getAlertSound]
@@ -467,8 +473,12 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
       }
       patch({ scheduleIndex: nextIndex, currentCycleMin: s.current.schedule[nextIndex].min });
     } else {
-      const nextMin = s.current.currentCycleMin - 1;
-      if (nextMin < s.current.endMinutes) {
+      const step = s.current.stepMin || 1;
+      const nextMin =
+        s.current.direction === 'increasing' ? s.current.currentCycleMin + step : s.current.currentCycleMin - step;
+      const overshot =
+        s.current.direction === 'increasing' ? nextMin > s.current.endMinutes : nextMin < s.current.endMinutes;
+      if (overshot) {
         void finishAll();
         return false;
       }
@@ -605,9 +615,11 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
       const remaining = s.current.remainingSeconds > 0 ? s.current.remainingSeconds - 1 : 0;
       patch({ remainingSeconds: remaining });
       syncDisplay(fmt(remaining), `Cycle: ${s.current.currentCycleMin} min`, '');
-      const endAlertSecs = settingsRef.current?.end_alert_seconds ?? 0;
-      if (settingsRef.current?.end_alert_enabled && remaining > 0 && remaining === endAlertSecs) {
-        announceEndingSoon(getAlertSound(), remaining);
+      const endAlertSecs = settingsRef.current?.end_alert_enabled ? settingsRef.current.end_alert_seconds : 0;
+      if (endAlertSecs > 0 && remaining > 0 && remaining <= endAlertSecs) {
+        const useLabel = settingsRef.current?.end_alert_use_task_label;
+        const label = (useLabel && getCurrentLabel()) || `Cycle ${cycleNumber()}`;
+        cueEndingSoon(getAlertSound(), remaining, remaining === endAlertSecs, label);
       }
       if (remaining === 0) {
         const completedNum = cycleNumber();
@@ -768,10 +780,13 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
   const validateStandard = useCallback((): string | null => {
     const st = s.current.startMin;
     const en = s.current.endMin;
+    const step = s.current.stepMin;
     const br = s.current.breakSeconds;
     if (!Number.isInteger(st) || st <= 0) return 'Start time must be a positive integer.';
     if (!Number.isInteger(en) || en <= 0) return 'End time must be a positive integer.';
-    if (en > st) return 'End time must be ≤ start time.';
+    if (!Number.isInteger(step) || step < 1) return 'Step must be a positive integer.';
+    if (s.current.direction === 'decreasing' && en > st) return 'End time must be ≤ start time when decreasing.';
+    if (s.current.direction === 'increasing' && en < st) return 'End time must be ≥ start time when increasing.';
     if (!Number.isInteger(br) || br < 1) return 'Break interval must be ≥ 1 second.';
     return null;
   }, []);
@@ -957,6 +972,8 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
           endMin: snap.end_min || 10,
           breakSeconds: snap.break_seconds,
           stdTaskLabel: snap.std_task_label || '',
+          direction: snap.standard_direction || 'decreasing',
+          stepMin: snap.standard_step_min || 1,
         });
       }
 
@@ -994,8 +1011,11 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
         if (choice === 'restart') {
           // Redo the same completed cycle length as-is (currentCycleMin unchanged).
         } else {
-          const nextMin = snap.current_cycle_min - 1;
-          if (nextMin < endMinutes) {
+          const step = snap.standard_step_min || 1;
+          const direction = snap.standard_direction || 'decreasing';
+          const nextMin = direction === 'increasing' ? snap.current_cycle_min + step : snap.current_cycle_min - step;
+          const overshot = direction === 'increasing' ? nextMin > endMinutes : nextMin < endMinutes;
+          if (overshot) {
             await finishAll();
             return;
           }
@@ -1212,6 +1232,8 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
           breakSeconds: snap.break_seconds,
           alertSound: snap.alert_sound,
           stdTaskLabel: snap.std_task_label || '',
+          direction: snap.standard_direction || 'decreasing',
+          stepMin: snap.standard_step_min || 1,
           sessionName: sessionName || '',
           errorMsg: '',
         });
