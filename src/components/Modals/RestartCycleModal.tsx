@@ -23,10 +23,10 @@ export default function RestartCycleModal({ open, onClose }: { open: boolean; on
           original length. It'll show as "Restarted" in History — nothing is hidden.
         </p>
         <div className="modal-btns">
-          <button style={{ background: '#3f4a60', color: '#aab2c5' }} onClick={onClose}>
+          <button style={{ background: '#454B51', color: '#9BA3A8' }} onClick={onClose}>
             Cancel
           </button>
-          <button style={{ background: '#e05656', color: '#fff' }} onClick={confirm}>
+          <button style={{ background: '#D06868', color: '#EEF1EE' }} onClick={confirm}>
             Restart
           </button>
         </div>

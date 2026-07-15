@@ -46,12 +46,12 @@ export default function TemplateNameModal({ onSaved }: { onSaved: () => void }) 
         </div>
         <div className="modal-btns">
           <button
-            style={{ background: '#3f4a60', color: '#aab2c5' }}
+            style={{ background: '#454B51', color: '#9BA3A8' }}
             onClick={() => actions.patch({ tplNameModalOpen: false })}
           >
             Cancel
           </button>
-          <button style={{ background: '#4caf50', color: '#fff' }} onClick={save}>
+          <button style={{ background: '#3B8A81', color: '#EEF1EE' }} onClick={save}>
             Save
           </button>
         </div>

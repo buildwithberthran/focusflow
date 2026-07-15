@@ -29,10 +29,10 @@ export default function DeleteSessionModal({
           it stays in your History.
         </p>
         <div className="modal-btns">
-          <button style={{ background: '#3f4a60', color: '#aab2c5' }} onClick={onCancel}>
+          <button style={{ background: '#454B51', color: '#9BA3A8' }} onClick={onCancel}>
             Cancel
           </button>
-          <button style={{ background: '#e05656', color: '#fff' }} onClick={onConfirm}>
+          <button style={{ background: '#D06868', color: '#EEF1EE' }} onClick={onConfirm}>
             End session
           </button>
         </div>

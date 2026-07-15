@@ -45,11 +45,11 @@ export default function ExtendCycleModal({ open, onClose }: { open: boolean; onC
           />
         </div>
         <div className="modal-btns">
-          <button style={{ background: '#3f4a60', color: '#aab2c5' }} onClick={onClose}>
+          <button style={{ background: '#454B51', color: '#9BA3A8' }} onClick={onClose}>
             Cancel
           </button>
           <button
-            style={{ background: '#4caf50', color: '#fff' }}
+            style={{ background: '#3B8A81', color: '#EEF1EE' }}
             onClick={() => apply(parseInt(custom, 10) || 0)}
           >
             Add time

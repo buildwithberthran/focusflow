@@ -120,7 +120,7 @@ export async function dbUpdateCycleLog(
   updates: Partial<
     Pick<
       CycleLogRow,
-      'completed' | 'log_note' | 'pause_reason' | 'break_pause_reason' | 'extension_log' | 'restart_count'
+      'completed' | 'log_note' | 'pause_reason' | 'break_pause_reason' | 'extension_log' | 'restart_count' | 'ended_at'
     >
   >
 ) {
