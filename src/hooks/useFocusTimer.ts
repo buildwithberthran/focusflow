@@ -32,6 +32,7 @@ import {
   dbStartSession,
   dbUpdateCycleLog,
 } from '../lib/db';
+import { notifyRecoverableChanged } from '../lib/events';
 import { formatClock } from '../lib/time';
 
 export interface EngineState {
@@ -295,12 +296,12 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
     if (progEl) progEl.textContent = d.progress || '';
     if (taskEl) taskEl.textContent = d.task || '';
 
-    const accent = d.isBreak ? '#ffb86b' : '#5b8cff';
-    if (timeEl) timeEl.style.color = d.paused ? '#ffd166' : '#f5f7fb';
+    const accent = d.isBreak ? '#E8A23D' : '#3B8A81';
+    if (timeEl) timeEl.style.color = d.paused ? '#E8A23D' : '#EEF1EE';
     if (ringEl) {
       const offset = PW_RING_C * (1 - d.fraction);
       ringEl.style.strokeDashoffset = String(offset);
-      ringEl.style.stroke = d.paused ? '#ffd166' : accent;
+      ringEl.style.stroke = d.paused ? '#E8A23D' : accent;
     }
     if (cardEl) cardEl.setAttribute('data-paused', d.paused ? '1' : '0');
   }, []);
@@ -632,13 +633,28 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
         const isLast =
           s.current.appMode === 'target'
             ? s.current.scheduleIndex >= s.current.schedule.length - 1
-            : s.current.currentCycleMin <= s.current.endMinutes;
+            : s.current.direction === 'increasing'
+              ? s.current.currentCycleMin + s.current.stepMin > s.current.endMinutes
+              : s.current.currentCycleMin - s.current.stepMin < s.current.endMinutes;
         clearTimer();
         if (isLast) {
           patch({ phase: 'announcing-break' });
           const cap = runTokenRef.current;
           const sv = () => runTokenRef.current === cap;
           syncDisplay('00:00', `Circle ${completedNum} complete`, '🎉 All done!');
+          // Every cycle is genuinely done at this point — record that now,
+          // before the review modal, not after. Previously this only happened
+          // in finishAll() at the very end, so refreshing the page while the
+          // review modal was still waiting for an answer left the session's
+          // DB row at status='active' forever, indistinguishable from a
+          // truly-abandoned session even though all the work was finished.
+          if (s.current.currentSessionId) {
+            void dbEndSession(s.current.currentSessionId, s.current.completedCyclesCount + 1, 'completed');
+            void dbDeleteSnapshot(s.current.currentSessionId);
+          }
+          if (s.current.currentCycleLogId) {
+            void dbUpdateCycleLog(s.current.currentCycleLogId, { ended_at: new Date().toISOString() });
+          }
           (async () => {
             if (getAlertSound() === 'voice') {
               await speakSequence([`Circle ${completedNum} complete. All circles finished!`], sv);
@@ -965,6 +981,7 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
         await dbEndSession(s.current.currentSessionId, s.current.completedCyclesCount, 'interrupted');
       }
       clearLockIfOwned();
+      notifyRecoverableChanged();
     }
 
     cancelSpeech();
@@ -1316,43 +1333,43 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
 
   // ───────────────────────── popout / PiP ─────────────────────────
   const widgetFontLink =
-    '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">';
+    '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">';
 
   const widgetCSS = `
     *{box-sizing:border-box;margin:0;padding:0;}
     body{
-      font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
-      background:#0b0f17;color:#f5f7fb;display:flex;flex-direction:column;
+      font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,sans-serif;
+      background:#14181C;color:#EEF1EE;display:flex;flex-direction:column;
       align-items:center;justify-content:center;min-height:100vh;padding:18px;text-align:center;
       -webkit-user-select:none;user-select:none;
     }
     #pw-card{
-      width:100%;max-width:280px;background:#161d2b;border:1px solid rgba(255,255,255,.07);
+      width:100%;max-width:280px;background:#2A2E32;border:1px solid rgba(255,255,255,.07);
       border-radius:18px;padding:20px 18px 18px;display:flex;flex-direction:column;align-items:center;
     }
     #pw-brand{
-      display:flex;align-items:center;gap:6px;font-family:'Sora',sans-serif;font-weight:700;
-      font-size:.78rem;color:#8a93a6;letter-spacing:.3px;margin-bottom:14px;
+      display:flex;align-items:center;gap:6px;font-family:'Space Grotesk',sans-serif;font-weight:700;
+      font-size:.78rem;color:#9BA3A8;letter-spacing:.3px;margin-bottom:14px;
     }
-    #pw-brand .pw-dot{width:6px;height:6px;border-radius:50%;background:#5b8cff;}
+    #pw-brand .pw-dot{width:6px;height:6px;border-radius:50%;background:#3B8A81;}
     #pw-ring-wrap{position:relative;width:132px;height:132px;margin-bottom:12px;}
     #pw-ring-wrap svg{transform:rotate(-90deg);width:100%;height:100%;}
     #pw-ring-track{fill:none;stroke:rgba(255,255,255,.07);stroke-width:8;}
     #pw-ring-fill{
-      fill:none;stroke:#5b8cff;stroke-width:8;stroke-linecap:round;
+      fill:none;stroke:#3B8A81;stroke-width:8;stroke-linecap:round;
       stroke-dasharray:${PW_RING_C};stroke-dashoffset:0;
       transition:stroke-dashoffset .9s linear,stroke .3s ease;
     }
     #pw-ring-center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;}
     #pw-time{
       font-family:'IBM Plex Mono',monospace;font-size:1.7rem;font-weight:600;letter-spacing:.5px;
-      font-variant-numeric:tabular-nums;color:#f5f7fb;transition:color .3s;
+      font-variant-numeric:tabular-nums;color:#EEF1EE;transition:color .3s;
     }
-    #pw-cycle{font-size:.86rem;font-weight:600;color:#dde1e9;margin-bottom:3px;min-height:1.3em;}
-    #pw-task{font-size:.74rem;color:#7dc8ff;margin-bottom:3px;min-height:1.15em;font-weight:500;}
-    #pw-status{font-size:.72rem;color:#ffb86b;min-height:1.3em;}
-    #pw-prog{font-size:.62rem;color:#5a6478;margin-top:4px;min-height:1.1em;font-family:'IBM Plex Mono',monospace;}
-    #pw-card[data-paused="1"] #pw-time{color:#ffd166;}
+    #pw-cycle{font-size:.86rem;font-weight:600;color:#C7CCC9;margin-bottom:3px;min-height:1.3em;}
+    #pw-task{font-size:.74rem;color:#6FBFB2;margin-bottom:3px;min-height:1.15em;font-weight:500;}
+    #pw-status{font-size:.72rem;color:#E8A23D;min-height:1.3em;}
+    #pw-prog{font-size:.62rem;color:#9BA3A8;margin-top:4px;min-height:1.1em;font-family:'IBM Plex Mono',monospace;}
+    #pw-card[data-paused="1"] #pw-time{color:#E8A23D;}
   `;
 
   const widgetBodyHTML = useCallback(() => {

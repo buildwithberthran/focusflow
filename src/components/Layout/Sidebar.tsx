@@ -1,4 +1,5 @@
 import { Timer as TimerIcon, ListChecks, LayoutTemplate, LogOut, RotateCcw, Settings as SettingsIcon } from 'lucide-react';
+import CheckpointBarsIcon from '../Brand/CheckpointBarsIcon';
 import { useAuth } from '../../context/AuthContext';
 import { useTimerEngine } from '../../context/TimerEngineContext';
 import { useRecoverableCount } from '../../hooks/useRecoverableCount';
@@ -22,7 +23,7 @@ export default function Sidebar({ active, onChange }: { active: Page; onChange: 
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <span className="sidebar-brand-mark">⏱</span>
+        <span className="sidebar-brand-mark"><CheckpointBarsIcon size={18} /></span>
         <span className="sidebar-brand-text">FocusFlow</span>
       </div>
 

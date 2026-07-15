@@ -1,15 +1,13 @@
-import type { TemplateRow } from '../../types';
-
-export default function DeleteTemplateModal({
-  template,
+export default function EndAllSessionsModal({
+  count,
   onCancel,
   onConfirm,
 }: {
-  template: TemplateRow | null;
+  count: number;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
-  if (!template) return null;
+  if (!count) return null;
 
   return (
     <div
@@ -19,17 +17,17 @@ export default function DeleteTemplateModal({
       }}
     >
       <div className="modal">
-        <h2>Delete template?</h2>
+        <h2>End all {count} session{count === 1 ? '' : 's'}?</h2>
         <p>
-          "{template.name}" will be permanently deleted. This doesn't affect any past sessions
-          that used it.
+          Every session listed here will be permanently closed. This can't be undone — they'll stay
+          in your History, just won't be recoverable anymore.
         </p>
         <div className="modal-btns">
           <button style={{ background: '#454B51', color: '#9BA3A8' }} onClick={onCancel}>
             Cancel
           </button>
           <button style={{ background: '#D06868', color: '#EEF1EE' }} onClick={onConfirm}>
-            Delete
+            End all
           </button>
         </div>
       </div>

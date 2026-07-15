@@ -65,6 +65,13 @@ function playEndingSoonTone() {
 // which is exactly the "sounds late" bug this replaces.)
 export function cueEndingSoon(alertSound: 'beep' | 'voice', remaining: number, isFirst: boolean, label: string) {
   if (alertSound === 'voice') {
+    // Each cue must interrupt, never queue. speakPhrase() alone doesn't cancel
+    // a prior utterance, and a longer first phrase ("Cycle 1 ending in 5")
+    // can easily take longer than a second to say — without cancelling here,
+    // every subsequent per-second call queues up behind it instead of
+    // replacing it, and the whole countdown falls further behind every tick
+    // until it's still finishing "5" after the cycle has already ended.
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     const phrase = isFirst ? `${label} ending in ${remaining}` : String(remaining);
     void speakPhrase(phrase);
     return;

@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Play, RotateCw, XCircle } from 'lucide-react';
+import { Play, RotateCw, XCircle, XSquare } from 'lucide-react';
 import { useTimerEngine } from '../../context/TimerEngineContext';
 import { dbAbandonSession, dbListRecoverableSessions, type RecoverableSession } from '../../lib/db';
 import { describeResumeChoice } from '../../lib/resumeChoice';
+import { notifyRecoverableChanged } from '../../lib/events';
 import type { Page } from '../Layout/AppShell';
 import ResumeChoiceModal from '../Modals/ResumeChoiceModal';
 import DeleteSessionModal from '../Modals/DeleteSessionModal';
+import EndAllSessionsModal from '../Modals/EndAllSessionsModal';
 
 export default function RecoverPage({ onNavigate }: { onNavigate: (p: Page) => void }) {
   const { state, actions } = useTimerEngine();
@@ -14,6 +16,8 @@ export default function RecoverPage({ onNavigate }: { onNavigate: (p: Page) => v
   const [busyId, setBusyId] = useState<string | null>(null);
   const [choiceRow, setChoiceRow] = useState<RecoverableSession | null>(null);
   const [deleteRow, setDeleteRow] = useState<RecoverableSession | null>(null);
+  const [endAllOpen, setEndAllOpen] = useState(false);
+  const [endingAll, setEndingAll] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -38,6 +42,7 @@ export default function RecoverPage({ onNavigate }: { onNavigate: (p: Page) => v
     setBusyId(row.session.id);
     try {
       await actions.doResume(row.session, row.snapshot, choice);
+      notifyRecoverableChanged();
       onNavigate('timer');
     } finally {
       setBusyId(null);
@@ -69,6 +74,7 @@ export default function RecoverPage({ onNavigate }: { onNavigate: (p: Page) => v
       await dbAbandonSession(row.session.id);
       if (row.snapshot) actions.configureFromSnapshot(row.snapshot, row.session.name);
       await load();
+      notifyRecoverableChanged();
       onNavigate('timer');
     } finally {
       setBusyId(null);
@@ -81,9 +87,22 @@ export default function RecoverPage({ onNavigate }: { onNavigate: (p: Page) => v
     try {
       await dbAbandonSession(deleteRow.session.id);
       await load();
+      notifyRecoverableChanged();
     } finally {
       setBusyId(null);
       setDeleteRow(null);
+    }
+  }
+
+  async function confirmEndAll() {
+    setEndingAll(true);
+    try {
+      await Promise.all(rows.map((row) => dbAbandonSession(row.session.id)));
+      await load();
+      notifyRecoverableChanged();
+    } finally {
+      setEndingAll(false);
+      setEndAllOpen(false);
     }
   }
 
@@ -106,6 +125,17 @@ export default function RecoverPage({ onNavigate }: { onNavigate: (p: Page) => v
         <div className="empty-state">
           <div className="es-icon">✅</div>
           Nothing to recover — every past session ended cleanly.
+        </div>
+      )}
+
+      {!loading && rows.length > 1 && (
+        <div className="history-toolbar">
+          <button
+            style={{ background: 'transparent', border: '1px solid #454B51', color: '#D06868' }}
+            onClick={() => setEndAllOpen(true)}
+          >
+            <XSquare size={14} strokeWidth={2.2} /> End all ({rows.length})
+          </button>
         </div>
       )}
 
@@ -159,6 +189,12 @@ export default function RecoverPage({ onNavigate }: { onNavigate: (p: Page) => v
         onChoose={(choice) => choiceRow && runResume(choiceRow, choice)}
       />
       <DeleteSessionModal row={deleteRow} onCancel={() => setDeleteRow(null)} onConfirm={confirmEnd} />
+      <EndAllSessionsModal
+        count={endAllOpen ? rows.length : 0}
+        onCancel={() => setEndAllOpen(false)}
+        onConfirm={confirmEndAll}
+      />
+      {endingAll && <div className="history-loading">Ending all sessions…</div>}
     </div>
   );
 }

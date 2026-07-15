@@ -127,7 +127,7 @@ export default function HistoryPage() {
       </div>
 
       {loading && <div className="history-loading">Loading…</div>}
-      {error && <div className="history-loading" style={{ color: '#ff6b6b' }}>Error: {error}</div>}
+      {error && <div className="history-loading" style={{ color: '#D06868' }}>Error: {error}</div>}
       {!loading && !error && !sessions.length && (
         <div className="empty-state">
           <div className="es-icon">📭</div>No sessions yet.
@@ -366,7 +366,7 @@ function SessionItem({
       </div>
       <div className="session-body">
         {!sLogs.length && (
-          <div style={{ fontSize: '0.8rem', color: '#5a6a88', padding: '6px 0' }}>No cycle data.</div>
+          <div style={{ fontSize: '0.8rem', color: '#9BA3A8', padding: '6px 0' }}>No cycle data.</div>
         )}
         {sLogs.map((l) => (
           <CycleLogCard key={l.id} log={l} onRefresh={onRefresh} />
@@ -500,13 +500,13 @@ function CycleLogCard({ log: l, onRefresh }: { log: CycleLogRow; onRefresh: () =
             />
             <div style={{ display: 'flex', gap: 8 }}>
               <button
-                style={{ background: '#3f4a60', color: '#aab2c5', flex: 1 }}
+                style={{ background: '#454B51', color: '#9BA3A8', flex: 1 }}
                 onClick={() => setEditingReview(false)}
                 disabled={saving}
               >
                 Cancel
               </button>
-              <button style={{ background: '#4caf50', color: '#fff', flex: 1 }} onClick={saveReview} disabled={saving}>
+              <button style={{ background: '#3B8A81', color: '#EEF1EE', flex: 1 }} onClick={saveReview} disabled={saving}>
                 {saving ? 'Saving…' : 'Save'}
               </button>
             </div>

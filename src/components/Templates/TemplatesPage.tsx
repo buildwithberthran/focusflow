@@ -41,7 +41,7 @@ export default function TemplatesPage({ onNavigate }: { onNavigate: (p: Page) =>
 
       <div className="history-toolbar">
         <button
-          style={{ background: '#2a3344', color: '#aab2c5', border: '1px solid #3f4a60' }}
+          style={{ background: '#33383D', color: '#9BA3A8', border: '1px solid #454B51' }}
           onClick={refresh}
         >
           ↻ Refresh
@@ -50,7 +50,7 @@ export default function TemplatesPage({ onNavigate }: { onNavigate: (p: Page) =>
 
       {loading && <div className="history-loading">Loading…</div>}
       {error && (
-        <div className="history-loading" style={{ color: '#ff6b6b' }}>
+        <div className="history-loading" style={{ color: '#D06868' }}>
           Error: {error}
         </div>
       )}

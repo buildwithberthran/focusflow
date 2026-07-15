@@ -46,7 +46,7 @@ export default function ReviewModal() {
           />
         </div>
         <div className="modal-btns" style={{ marginTop: 4 }}>
-          <button style={{ background: '#4caf50', color: '#fff' }} onClick={submit}>
+          <button style={{ background: '#3B8A81', color: '#EEF1EE' }} onClick={submit}>
             Save &amp; Continue
           </button>
         </div>

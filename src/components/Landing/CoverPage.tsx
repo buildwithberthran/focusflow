@@ -1,5 +1,6 @@
 import './cover.css';
 import { useAuth } from '../../context/AuthContext';
+import CheckpointBarsIcon from '../Brand/CheckpointBarsIcon';
 
 export default function CoverPage() {
   const { signInWithGoogle } = useAuth();
@@ -10,7 +11,7 @@ export default function CoverPage() {
       <div className="cover-grain" aria-hidden="true" />
 
       <header className="cover-topbar">
-        <span className="cover-mark">⏱</span>
+        <span className="cover-mark"><CheckpointBarsIcon size={18} /></span>
         <span className="cover-name">FocusFlow</span>
       </header>
 

@@ -100,8 +100,9 @@ The previous "always restarts from cycle 1" bug was `doResume` never advancing t
 
 | File | What it controls |
 |---|---|
-| `BRANDING.md` | The brand system: color tokens, type scale, logomark rationale, voice/tone. Read this before making visual changes anywhere. |
-| `public/brand/logomark.svg` | The single-color logomark (descending bars in a timer ring), recolorable via `currentColor`. |
+| `BRANDING.md` | The brand system as actually implemented — exact token mapping from the guide, dark/light values, and which derived shades exist and why. Read this before making visual changes anywhere. |
+| `src/components/Brand/CheckpointBarsIcon.tsx` | The logomark as an inline, theme-aware React component (bars inherit `currentColor`, pin is always Amber). Used in the sidebar and cover page. |
+| `public/brand/logomark.svg` | Self-contained static version (fixed colors) — the favicon, and anywhere an `<img>` fits better than the component. |
 
 ## Logic (no UI, but drives everything above)
 

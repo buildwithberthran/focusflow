@@ -37,8 +37,8 @@ export default function App() {
         style={{
           position: 'fixed',
           inset: 0,
-          background: '#0b0f17',
-          color: '#8a93a6',
+          background: '#14181C',
+          color: '#9BA3A8',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

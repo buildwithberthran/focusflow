@@ -159,10 +159,10 @@ export default function EditTemplateModal({
         {error && <div className="error">{error}</div>}
 
         <div className="modal-btns">
-          <button style={{ background: '#3f4a60', color: '#aab2c5' }} onClick={onClose} disabled={saving}>
+          <button style={{ background: '#454B51', color: '#9BA3A8' }} onClick={onClose} disabled={saving}>
             Cancel
           </button>
-          <button style={{ background: '#4caf50', color: '#fff' }} onClick={save} disabled={saving}>
+          <button style={{ background: '#3B8A81', color: '#EEF1EE' }} onClick={save} disabled={saving}>
             {saving ? 'Saving…' : 'Save changes'}
           </button>
         </div>

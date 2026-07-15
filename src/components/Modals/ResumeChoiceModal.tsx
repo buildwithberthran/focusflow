@@ -24,11 +24,11 @@ export default function ResumeChoiceModal({
         <h2>{desc.title}</h2>
         <p>How would you like to resume?</p>
         <div className="modal-btns" style={{ flexDirection: 'column', gap: 10 }}>
-          <button style={{ background: '#4caf50', color: '#fff', width: '100%' }} onClick={() => onChoose('continue')}>
+          <button style={{ background: '#3B8A81', color: '#EEF1EE', width: '100%' }} onClick={() => onChoose('continue')}>
             {desc.continueLabel}
           </button>
           <button
-            style={{ background: '#2a3344', color: '#aab2c5', border: '1px solid #3f4a60', width: '100%' }}
+            style={{ background: '#33383D', color: '#9BA3A8', border: '1px solid #454B51', width: '100%' }}
             onClick={() => onChoose('restart')}
           >
             {desc.restartLabel}
