@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Play, Pause, Square, SkipForward, ExternalLink, Target, LayoutList, Clock, Tag, Bell, LayoutTemplate, Sparkles, ListPlus, ArrowDown, ArrowUp, Timer as TimerPlusIcon, RotateCw } from 'lucide-react';
+import { Play, Pause, Square, SkipForward, ExternalLink, Target, LayoutList, Clock, Tag, Bell, LayoutTemplate, Sparkles, ListPlus, ArrowDown, ArrowUp } from 'lucide-react';
 import { useTimerEngine } from '../../context/TimerEngineContext';
 import { useTemplates } from '../../hooks/useTemplates';
 import StatsBar from '../Layout/StatsBar';
@@ -10,8 +10,7 @@ import ModeModal from '../Modals/ModeModal';
 import ReviewModal from '../Modals/ReviewModal';
 import TemplateNameModal from '../Modals/TemplateNameModal';
 import PauseReasonModal from '../Modals/PauseReasonModal';
-import ExtendCycleModal from '../Modals/ExtendCycleModal';
-import RestartCycleModal from '../Modals/RestartCycleModal';
+import CycleEndChoiceModal from '../Modals/CycleEndChoiceModal';
 
 import type { Page } from '../Layout/AppShell';
 
@@ -19,8 +18,7 @@ export default function TimerPage({ onNavigate }: { onNavigate: (p: Page) => voi
   const { state, actions, derived } = useTimerEngine();
   const { templates, refresh } = useTemplates();
   const [selectedTplId, setSelectedTplId] = useState('');
-  const [extendOpen, setExtendOpen] = useState(false);
-  const [restartOpen, setRestartOpen] = useState(false);
+
 
   useEffect(() => {
     actions.checkForInterruptedSession();
@@ -98,17 +96,6 @@ export default function TimerPage({ onNavigate }: { onNavigate: (p: Page) => voi
             <button id="continueBtn" onClick={() => actions.continueNextCycle()}>
               <SkipForward size={16} strokeWidth={2.4} /> Continue Next Cycle
             </button>
-          )}
-
-          {derived.canExtendOrRestart && (
-            <div className="buttons-row secondary">
-              <button className="extend-btn" onClick={() => setExtendOpen(true)}>
-                <TimerPlusIcon size={14} strokeWidth={2.2} /> Extend
-              </button>
-              <button className="restart-cycle-btn" onClick={() => setRestartOpen(true)}>
-                <RotateCw size={14} strokeWidth={2.2} /> Restart cycle
-              </button>
-            </div>
           )}
 
           <button id="popoutBtn" onClick={() => actions.openPopout()}>
@@ -437,8 +424,7 @@ export default function TimerPage({ onNavigate }: { onNavigate: (p: Page) => voi
       <ModeModal />
       <ReviewModal />
       <PauseReasonModal />
-      <ExtendCycleModal open={extendOpen} onClose={() => setExtendOpen(false)} />
-      <RestartCycleModal open={restartOpen} onClose={() => setRestartOpen(false)} />
+      <CycleEndChoiceModal />
       <TemplateNameModal onSaved={refresh} />
     </div>
   );
