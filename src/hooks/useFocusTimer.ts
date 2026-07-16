@@ -91,6 +91,9 @@ export interface EngineState {
   pauseReasonContext: 'cycle' | 'break' | null;
   pauseReasonAwaySeconds: number;
 
+  // end-of-cycle extend/restart choice (Target mode only)
+  cycleEndChoiceOpen: boolean;
+
   // resume banner
   resumeBannerVisible: boolean;
   resumeBannerSub: string;
@@ -149,6 +152,7 @@ function initialState(): EngineState {
     pauseReasonPromptOpen: false,
     pauseReasonContext: null,
     pauseReasonAwaySeconds: 0,
+    cycleEndChoiceOpen: false,
 
     resumeBannerVisible: false,
     resumeBannerSub: '',
@@ -177,6 +181,7 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
   const runTokenRef = useRef(0);
   const pauseStartedAtRef = useRef<number | null>(null);
   const pendingResumeElapsedRef = useRef<number>(0);
+  const cycleEndInfoRef = useRef<{ completedNum: number; isLast: boolean } | null>(null);
   const settingsRef = useRef<UserSettings | null>(settings);
   settingsRef.current = settings;
   const getTransitionSeconds = useCallback(() => settingsRef.current?.transition_seconds ?? 3, []);
@@ -616,6 +621,53 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
     [advanceToNextCycle, cycleNumber, getCurrentLabel, userId, patch, saveSnapshot, syncDisplay, getAlertSound, clearTimer, getTransitionSeconds]
   );
 
+  const proceedAfterCycleEnd = useCallback(
+    (completedNum: number, isLast: boolean) => {
+      if (isLast) {
+        patch({ phase: 'announcing-break' });
+        const cap = runTokenRef.current;
+        const sv = () => runTokenRef.current === cap;
+        syncDisplay('00:00', `Circle ${completedNum} complete`, '🎉 All done!');
+        // Every cycle is genuinely done at this point — record that now,
+        // before the review modal, not after. Previously this only happened
+        // in finishAll() at the very end, so refreshing the page while the
+        // review modal was still waiting for an answer left the session's
+        // DB row at status='active' forever, indistinguishable from a
+        // truly-abandoned session even though all the work was finished.
+        if (s.current.currentSessionId) {
+          void dbEndSession(s.current.currentSessionId, s.current.completedCyclesCount + 1, 'completed');
+          void dbDeleteSnapshot(s.current.currentSessionId);
+        }
+        if (s.current.currentCycleLogId) {
+          void dbUpdateCycleLog(s.current.currentCycleLogId, { ended_at: new Date().toISOString() });
+        }
+        (async () => {
+          if (getAlertSound() === 'voice') {
+            await speakSequence([`Circle ${completedNum} complete. All circles finished!`], sv);
+          } else {
+            playBeep();
+            await new Promise((r) => setTimeout(r, 800));
+          }
+          if (!sv()) return;
+          patch({ phase: 'reviewing' });
+          const label = getCurrentLabel();
+          const { answer, note } = await openReviewModal(label, completedNum);
+          if (!sv()) return;
+          patch({ completedCyclesCount: s.current.completedCyclesCount + 1 });
+          if (s.current.currentCycleLogId) {
+            await dbEndCycle(s.current.currentCycleLogId, answer, note, s.current.pausedSecondsInCycle);
+          }
+          if (sv()) await finishAll();
+        })();
+        return;
+      }
+      patch({ phase: 'announcing-break' });
+      const cap = runTokenRef.current;
+      void transitionToBreak(completedNum, cap);
+    },
+    [patch, syncDisplay, getAlertSound, getCurrentLabel, openReviewModal, finishAll, transitionToBreak]
+  );
+
   const tick = useCallback(() => {
     const phase = s.current.phase;
     if (phase === 'countdown') {
@@ -637,47 +689,16 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
               ? s.current.currentCycleMin + s.current.stepMin > s.current.endMinutes
               : s.current.currentCycleMin - s.current.stepMin < s.current.endMinutes;
         clearTimer();
-        if (isLast) {
-          patch({ phase: 'announcing-break' });
-          const cap = runTokenRef.current;
-          const sv = () => runTokenRef.current === cap;
-          syncDisplay('00:00', `Circle ${completedNum} complete`, '🎉 All done!');
-          // Every cycle is genuinely done at this point — record that now,
-          // before the review modal, not after. Previously this only happened
-          // in finishAll() at the very end, so refreshing the page while the
-          // review modal was still waiting for an answer left the session's
-          // DB row at status='active' forever, indistinguishable from a
-          // truly-abandoned session even though all the work was finished.
-          if (s.current.currentSessionId) {
-            void dbEndSession(s.current.currentSessionId, s.current.completedCyclesCount + 1, 'completed');
-            void dbDeleteSnapshot(s.current.currentSessionId);
-          }
-          if (s.current.currentCycleLogId) {
-            void dbUpdateCycleLog(s.current.currentCycleLogId, { ended_at: new Date().toISOString() });
-          }
-          (async () => {
-            if (getAlertSound() === 'voice') {
-              await speakSequence([`Circle ${completedNum} complete. All circles finished!`], sv);
-            } else {
-              playBeep();
-              await new Promise((r) => setTimeout(r, 800));
-            }
-            if (!sv()) return;
-            patch({ phase: 'reviewing' });
-            const label = getCurrentLabel();
-            const { answer, note } = await openReviewModal(label, completedNum);
-            if (!sv()) return;
-            patch({ completedCyclesCount: s.current.completedCyclesCount + 1 });
-            if (s.current.currentCycleLogId) {
-              await dbEndCycle(s.current.currentCycleLogId, answer, note, s.current.pausedSecondsInCycle);
-            }
-            if (sv()) await finishAll();
-          })();
+        if (s.current.appMode === 'target') {
+          // Target mode: offer "I'm done / need more time / restart" right at
+          // the moment the buzzer goes off, instead of ambient Extend/Restart
+          // buttons sitting there distracting during the whole countdown.
+          cycleEndInfoRef.current = { completedNum, isLast };
+          syncDisplay('00:00', isLast ? `Circle ${completedNum} complete` : `Cycle ${completedNum} complete`, '');
+          patch({ cycleEndChoiceOpen: true });
           return;
         }
-        patch({ phase: 'announcing-break' });
-        const cap = runTokenRef.current;
-        void transitionToBreak(completedNum, cap);
+        proceedAfterCycleEnd(completedNum, isLast);
       }
       return;
     }
@@ -696,9 +717,30 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
         void transitionToNextCycle(cap);
       }
     }
-  }, [patch, syncDisplay, cycleNumber, clearTimer, getAlertSound, getCurrentLabel, openReviewModal, finishAll, transitionToBreak, transitionToNextCycle]);
+  }, [patch, syncDisplay, cycleNumber, clearTimer, getAlertSound, getCurrentLabel, proceedAfterCycleEnd, transitionToNextCycle]);
 
   tickRef.current = tick;
+
+  const extendCurrentCycleRef = useRef<(minutes: number) => void>(() => {});
+  const restartCurrentCycleRef = useRef<() => void>(() => {});
+
+  const resolveCycleEndChoice = useCallback(
+    (choice: 'done' | 'extend' | 'restart', extendMinutes?: number) => {
+      patch({ cycleEndChoiceOpen: false });
+      const info = cycleEndInfoRef.current;
+      cycleEndInfoRef.current = null;
+      if (choice === 'extend' && extendMinutes && extendMinutes > 0) {
+        extendCurrentCycleRef.current(extendMinutes);
+        return;
+      }
+      if (choice === 'restart') {
+        restartCurrentCycleRef.current();
+        return;
+      }
+      if (info) proceedAfterCycleEnd(info.completedNum, info.isLast);
+    },
+    [patch, proceedAfterCycleEnd]
+  );
 
   // ───────────────────────── pause / resume / continue ─────────────────────────
   const pauseTimer = useCallback(() => {
@@ -802,6 +844,11 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
         `Cycle: ${s.current.currentCycleMin} min (+${minutes}m)`,
         s.current.phase === 'paused' ? '⏸ Paused' : ''
       );
+      // Covers both resuming-from-pause and the new end-of-cycle "extend"
+      // choice, where the interval was already stopped (the cycle had hit 0).
+      if (s.current.phase === 'countdown' && intervalRef.current === null) {
+        intervalRef.current = window.setInterval(() => tickRef.current(), 1000);
+      }
       if (s.current.currentCycleLogId) {
         try {
           await dbAppendCycleExtension(s.current.currentCycleLogId, minutes);
@@ -812,10 +859,10 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
     },
     [canExtendOrRestart, patch, syncDisplay]
   );
+  extendCurrentCycleRef.current = extendCurrentCycle;
 
   const restartCurrentCycle = useCallback(async () => {
     if (!canExtendOrRestart()) return;
-    const wasPaused = s.current.phase === 'paused';
     const freshSeconds = s.current.currentCycleMin * 60;
     pauseStartedAtRef.current = null;
     patch({
@@ -827,7 +874,8 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
       phaseBeforePause: null,
     });
     syncDisplay(fmt(freshSeconds), `Cycle: ${s.current.currentCycleMin} min`, '🔄 Cycle restarted');
-    if (wasPaused) {
+    // Covers resuming-from-pause and the new end-of-cycle "restart" choice.
+    if (intervalRef.current === null) {
       clearTimer();
       intervalRef.current = window.setInterval(() => tickRef.current(), 1000);
     }
@@ -839,6 +887,7 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
       }
     }
   }, [canExtendOrRestart, patch, syncDisplay, clearTimer]);
+  restartCurrentCycleRef.current = restartCurrentCycle;
 
   const continueNextCycle = useCallback(() => {
     if (s.current.phase !== 'waiting') return;
@@ -1531,6 +1580,7 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
       resolvePauseReason,
       extendCurrentCycle,
       restartCurrentCycle,
+      resolveCycleEndChoice,
       continueNextCycle,
       checkForInterruptedSession,
       resumeSession,
