@@ -21,8 +21,8 @@ export default function ProgressRing({
   const offset = c * (1 - clamped);
 
   return (
-    <div className="progress-ring-wrap" style={{ width: size, height: size }}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <div className="progress-ring-wrap" style={{ width: size, height: size, maxWidth: '100%', aspectRatio: '1 / 1' }}>
+      <svg width="100%" height="100%" viewBox={`0 0 ${size} ${size}`}>
         <circle
           cx={size / 2}
           cy={size / 2}

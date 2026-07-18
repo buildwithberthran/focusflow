@@ -293,6 +293,7 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
     const progEl = q('pw-prog') as HTMLElement | null;
     const taskEl = q('pw-task') as HTMLElement | null;
     const ringEl = q('pw-ring-fill') as unknown as SVGCircleElement | null;
+    const barEl = q('pw-bar-fill') as HTMLElement | null;
     const cardEl = q('pw-card') as HTMLElement | null;
 
     if (timeEl) timeEl.textContent = d.time;
@@ -307,6 +308,10 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
       const offset = PW_RING_C * (1 - d.fraction);
       ringEl.style.strokeDashoffset = String(offset);
       ringEl.style.stroke = d.paused ? '#E8A23D' : accent;
+    }
+    if (barEl) {
+      barEl.style.width = `${Math.round(Math.max(0, Math.min(1, d.fraction)) * 100)}%`;
+      barEl.style.background = d.paused ? '#E8A23D' : accent;
     }
     if (cardEl) cardEl.setAttribute('data-paused', d.paused ? '1' : '0');
   }, []);
@@ -868,7 +873,9 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
     patch({
       remainingSeconds: freshSeconds,
       pausedSecondsInCycle: 0,
-      currentCycleExtensions: [],
+      // currentCycleExtensions deliberately NOT cleared — a restart resets
+      // progress, not the record of how much time this work block has cost.
+      // Extensions made before the restart still count toward the total.
       currentCycleRestartCount: s.current.currentCycleRestartCount + 1,
       phase: 'countdown',
       phaseBeforePause: null,
@@ -1384,7 +1391,7 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
   const widgetFontLink =
     '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">';
 
-  const widgetCSS = `
+  const widgetBaseCSS = `
     *{box-sizing:border-box;margin:0;padding:0;}
     body{
       font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,sans-serif;
@@ -1392,15 +1399,19 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
       align-items:center;justify-content:center;min-height:100vh;padding:18px;text-align:center;
       -webkit-user-select:none;user-select:none;
     }
-    #pw-card{
-      width:100%;max-width:280px;background:#2A2E32;border:1px solid rgba(255,255,255,.07);
-      border-radius:18px;padding:20px 18px 18px;display:flex;flex-direction:column;align-items:center;
-    }
     #pw-brand{
       display:flex;align-items:center;gap:6px;font-family:'Space Grotesk',sans-serif;font-weight:700;
       font-size:.78rem;color:#9BA3A8;letter-spacing:.3px;margin-bottom:14px;
     }
     #pw-brand .pw-dot{width:6px;height:6px;border-radius:50%;background:#3B8A81;}
+  `;
+
+  // ── Ring: the original design — progress ring with time centered inside ──
+  const widgetCSSRing = widgetBaseCSS + `
+    #pw-card{
+      width:100%;max-width:280px;background:#2A2E32;border:1px solid rgba(255,255,255,.07);
+      border-radius:18px;padding:20px 18px 18px;display:flex;flex-direction:column;align-items:center;
+    }
     #pw-ring-wrap{position:relative;width:132px;height:132px;margin-bottom:12px;}
     #pw-ring-wrap svg{transform:rotate(-90deg);width:100%;height:100%;}
     #pw-ring-track{fill:none;stroke:rgba(255,255,255,.07);stroke-width:8;}
@@ -1420,10 +1431,7 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
     #pw-prog{font-size:.62rem;color:#9BA3A8;margin-top:4px;min-height:1.1em;font-family:'IBM Plex Mono',monospace;}
     #pw-card[data-paused="1"] #pw-time{color:#E8A23D;}
   `;
-
-  const widgetBodyHTML = useCallback(() => {
-    const d = s.current.display;
-    return `<div id="pw-card">
+  const widgetBodyHTMLRing = (d: DisplayState) => `<div id="pw-card">
       <div id="pw-brand"><span class="pw-dot"></span>FocusFlow</div>
       <div id="pw-ring-wrap">
         <svg viewBox="0 0 120 120">
@@ -1437,6 +1445,59 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
       <div id="pw-status">${d.status}</div>
       <div id="pw-prog">${d.progress}</div>
     </div>`;
+
+  // ── Minimal: just the timer, nothing else — as distraction-free as possible ──
+  const widgetCSSMinimal = widgetBaseCSS + `
+    #pw-card{ width:100%; display:flex; flex-direction:column; align-items:center; }
+    #pw-time{
+      font-family:'IBM Plex Mono',monospace;font-size:3.4rem;font-weight:600;letter-spacing:1px;
+      font-variant-numeric:tabular-nums;color:#EEF1EE;transition:color .3s;
+    }
+    #pw-cycle{font-size:.82rem;color:#9BA3A8;margin-top:10px;min-height:1.2em;}
+    #pw-card[data-paused="1"] #pw-time{color:#E8A23D;}
+  `;
+  const widgetBodyHTMLMinimal = (d: DisplayState) => `<div id="pw-card">
+      <div id="pw-time">${d.time}</div>
+      <div id="pw-cycle">${d.cycle}</div>
+    </div>`;
+
+  // ── Bar: a linear progress bar instead of a ring, more data visible at once ──
+  const widgetCSSBar = widgetBaseCSS + `
+    #pw-card{
+      width:100%;max-width:280px;background:#2A2E32;border:1px solid rgba(255,255,255,.07);
+      border-radius:16px;padding:18px 20px;display:flex;flex-direction:column;align-items:stretch;
+      text-align:left;
+    }
+    #pw-cycle{font-size:.82rem;font-weight:600;color:#C7CCC9;margin-bottom:6px;min-height:1.2em;}
+    #pw-time{
+      font-family:'IBM Plex Mono',monospace;font-size:2.15rem;font-weight:600;letter-spacing:.5px;
+      font-variant-numeric:tabular-nums;color:#EEF1EE;margin-bottom:12px;transition:color .3s;
+    }
+    #pw-bar-track{width:100%;height:8px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden;margin-bottom:10px;}
+    #pw-bar-fill{height:100%;width:0%;border-radius:6px;background:#3B8A81;transition:width .9s linear,background .3s ease;}
+    #pw-task{font-size:.74rem;color:#6FBFB2;margin-bottom:2px;min-height:1.1em;font-weight:500;}
+    #pw-status{font-size:.7rem;color:#E8A23D;min-height:1.2em;}
+    #pw-card[data-paused="1"] #pw-time{color:#E8A23D;}
+  `;
+  const widgetBodyHTMLBar = (d: DisplayState) => `<div id="pw-card">
+      <div id="pw-brand"><span class="pw-dot"></span>FocusFlow</div>
+      <div id="pw-cycle">${d.cycle}</div>
+      <div id="pw-time">${d.time}</div>
+      <div id="pw-bar-track"><div id="pw-bar-fill"></div></div>
+      <div id="pw-task">${d.task}</div>
+      <div id="pw-status">${d.status}</div>
+    </div>`;
+
+  const getWidgetTemplate = useCallback(() => {
+    const style = settingsRef.current?.popup_style ?? 'ring';
+    if (style === 'minimal') {
+      return { css: widgetCSSMinimal, bodyHTML: widgetBodyHTMLMinimal, width: 260, height: 170 };
+    }
+    if (style === 'bar') {
+      return { css: widgetCSSBar, bodyHTML: widgetBodyHTMLBar, width: 300, height: 230 };
+    }
+    return { css: widgetCSSRing, bodyHTML: widgetBodyHTMLRing, width: 320, height: 400 };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const openWindowPopout = useCallback(() => {
@@ -1444,10 +1505,11 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
       popWinRef.current.focus();
       return;
     }
+    const { css, bodyHTML, width, height } = getWidgetTemplate();
     const w = window.open(
       '',
       'FocusFlowPopout',
-      'width=320,height=400,resizable=yes,scrollbars=no,toolbar=no,menubar=no,location=no,status=no'
+      `width=${width},height=${height},resizable=yes,scrollbars=no,toolbar=no,menubar=no,location=no,status=no`
     );
     if (!w) {
       patch({ errorMsg: 'Pop-out blocked. Please allow pop-ups for this page.' });
@@ -1455,7 +1517,7 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
     }
     popWinRef.current = w;
     w.document.write(
-      `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>FocusFlow · Live</title>${widgetFontLink}<style>${widgetCSS}</style></head><body>${widgetBodyHTML()}</body></html>`
+      `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>FocusFlow · Live</title>${widgetFontLink}<style>${css}</style></head><body>${bodyHTML(s.current.display)}</body></html>`
     );
     w.document.close();
     applyWidgetState(w.document, s.current.display);
@@ -1465,7 +1527,7 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
         popWinRef.current = null;
       }
     }, 500);
-  }, [patch, widgetBodyHTML, applyWidgetState, widgetCSS]);
+  }, [patch, applyWidgetState, getWidgetTemplate]);
 
   const openDocumentPiP = useCallback(async () => {
     if (pipWinRef.current) {
@@ -1477,19 +1539,17 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
       }
     }
     try {
-      const pipWin = await (window as any).documentPictureInPicture.requestWindow({
-        width: 320,
-        height: 400,
-      });
+      const { css, bodyHTML, width, height } = getWidgetTemplate();
+      const pipWin = await (window as any).documentPictureInPicture.requestWindow({ width, height });
       pipWinRef.current = pipWin;
       const fontLinkContainer = pipWin.document.createElement('div');
       fontLinkContainer.innerHTML = widgetFontLink;
       Array.from(fontLinkContainer.children).forEach((el) => pipWin.document.head.appendChild(el));
       const st = pipWin.document.createElement('style');
-      st.textContent = widgetCSS;
+      st.textContent = css;
       pipWin.document.head.appendChild(st);
       const container = pipWin.document.createElement('div');
-      container.innerHTML = widgetBodyHTML();
+      container.innerHTML = bodyHTML(s.current.display);
       pipWin.document.body.appendChild(container);
       pipContainerRef.current = container;
       applyWidgetState(container, s.current.display);
@@ -1502,7 +1562,8 @@ export function useFocusTimer(userId: string | null, settings: UserSettings | nu
       pipContainerRef.current = null;
       if (err?.name !== 'NotAllowedError') openWindowPopout();
     }
-  }, [openWindowPopout, widgetBodyHTML, applyWidgetState, widgetCSS]);
+  }, [openWindowPopout, applyWidgetState, getWidgetTemplate]);
+
 
   const hasPiP = 'documentPictureInPicture' in window;
   const openPopout = useCallback(() => {

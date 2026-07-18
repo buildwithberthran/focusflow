@@ -1,6 +1,6 @@
-import { Zap, Bell, Coffee, MessageSquare, Palette, TimerReset, AlarmClockCheck } from 'lucide-react';
+import { Zap, Bell, Coffee, MessageSquare, Palette, TimerReset, AlarmClockCheck, PictureInPicture2, Circle, Minus, BarChart3 } from 'lucide-react';
 import { useSettings } from '../../context/SettingsContext';
-import type { AlertSound, StartupMode, Theme } from '../../types';
+import type { AlertSound, PopupStyle, StartupMode, Theme } from '../../types';
 import Toggle from './Toggle';
 
 export default function SettingsPage() {
@@ -297,6 +297,32 @@ export default function SettingsPage() {
               </div>
             </>
           )}
+        </div>
+
+        {/* ── Pop-out window style ── */}
+        <div className="config-section accent-blue settings-card settings-card-wide">
+          <div className="config-section-header">
+            <PictureInPicture2 size={14} strokeWidth={2.2} /> Pop-out window
+          </div>
+          <div className="popup-style-grid">
+            {(
+              [
+                ['ring', Circle, 'Ring', 'Progress ring with time centered inside — the original look.'],
+                ['minimal', Minus, 'Minimal', 'Just the timer digits. Nothing else, as distraction-free as it gets.'],
+                ['bar', BarChart3, 'Bar', 'A linear progress bar instead of a ring, plus task and status.'],
+              ] as [PopupStyle, typeof Circle, string, string][]
+            ).map(([val, Icon, label, hint]) => (
+              <button
+                key={val}
+                className={'popup-style-card' + (settings.popup_style === val ? ' active' : '')}
+                onClick={() => update({ popup_style: val })}
+              >
+                <Icon size={20} strokeWidth={1.8} />
+                <div className="popup-style-name">{label}</div>
+                <div className="popup-style-hint">{hint}</div>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* ── Appearance ── */}

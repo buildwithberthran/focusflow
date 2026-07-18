@@ -26,6 +26,7 @@ const DEFAULT_SETTINGS: Omit<UserSettings, 'user_id' | 'updated_at'> = {
   long_pause_break_mode: 'percent',
   long_pause_break_percent: 50,
   long_pause_break_minutes: 5,
+  popup_style: 'ring',
   theme: 'dark',
 };
 
@@ -159,7 +160,9 @@ export async function dbRegisterCycleRestart(cycleLogId: string): Promise<number
   const next = ((data?.restart_count as number) || 0) + 1;
   const { error: updateError } = await supabase
     .from('cycle_logs')
-    .update({ restart_count: next, extension_log: [], started_at: new Date().toISOString() })
+    // extension_log is deliberately left untouched — a restart resets
+    // progress, not the record of time already spent on this work block.
+    .update({ restart_count: next, started_at: new Date().toISOString() })
     .eq('id', cycleLogId);
   if (updateError) throw updateError;
   return next;

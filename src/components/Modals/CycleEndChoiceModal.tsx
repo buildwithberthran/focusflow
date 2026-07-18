@@ -68,8 +68,9 @@ export default function CycleEndChoiceModal() {
         <div className="modal">
           <h2>Restart this cycle?</h2>
           <p>
-            Runs the same length again from the top. This attempt's progress won't count — only the
-            final attempt's timing gets saved to History (a "Restarted" badge shows it happened).
+            Runs the same length again from the top. Any extensions already on this cycle stay in
+            the record — a restart resets the countdown, not the tally (History shows a "Restarted"
+            badge alongside it).
           </p>
           <div className="modal-btns">
             <button style={{ background: '#454B51', color: '#9BA3A8' }} onClick={() => setStep('main')}>
