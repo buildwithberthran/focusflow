@@ -81,6 +81,7 @@ export interface SnapshotRow {
 
 export type StartupMode = 'ask' | 'autopilot' | 'manual';
 export type Theme = 'dark' | 'light';
+export type PopupStyle = 'ring' | 'minimal' | 'bar';
 
 export interface UserSettings {
   user_id: string;
@@ -99,6 +100,7 @@ export interface UserSettings {
   long_pause_break_mode: 'percent' | 'minutes';
   long_pause_break_percent: number;
   long_pause_break_minutes: number;
+  popup_style: PopupStyle;
   theme: Theme;
   updated_at: string;
 }

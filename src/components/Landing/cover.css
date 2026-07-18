@@ -272,4 +272,8 @@
 
 @media (max-width: 480px) {
   .cover-headline { font-size: 2.1rem; }
+  .cover-hero { padding: 40px 18px 80px; }
+  .cover-cta { padding: 16px 30px; font-size: 0.98rem; }
+  .cover-eyebrow { margin-bottom: 24px; }
+  .cover-ring-wrap { margin-top: 56px; }
 }
